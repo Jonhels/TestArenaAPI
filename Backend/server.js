@@ -30,7 +30,7 @@ dbConnect().then(() => {
 });
 
 // cors
-const whitelist = ["https://skjaerstein.com", "http://localhost:5173", process.env.FRONTEND_URL] // Array of allowed origins
+const whitelist = ["https://testarena-production.up.railway.app", "http://localhost:5173", process.env.FRONTEND_URL] // Array of allowed origins
 const corsOptions = {
     origin: (origin, callback) => {
         if (!origin) {
