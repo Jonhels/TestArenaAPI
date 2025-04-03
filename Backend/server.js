@@ -11,6 +11,7 @@ const cookieParser = require("cookie-parser");
 
 // Import routes from the routes folder
 const userRoutes = require("./routes/userRoute");
+const contactsRoutes = require("./routes/contactsRoute"); 
 
 // const route = require("./routes/route");
 const app = express(); // Create an express app
@@ -56,8 +57,9 @@ app.get("/", (req, res) => {
     res.sendFile(path.join(__dirname, "templates", "index.html"));
 });
 
-// Template routes
+// Mount the user and contacts routes with CORS options
 app.use("/api/users", cors(corsOptions), userRoutes);
+app.use("/api/contacts", cors(corsOptions), contactsRoutes); // Use contacts routes with CORS
 
 // Error-handling middleware
 app.use((err, req, res, next) => {
