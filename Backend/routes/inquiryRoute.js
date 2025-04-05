@@ -14,6 +14,8 @@ const {
   deleteComment,
   addTag,
   addTags,
+  removeTag,
+  removeTags,
 } = require("../controllers/inquiryController");
 const authenticateUser = require("../utils/authenticateUser");
 
@@ -72,5 +74,11 @@ router.post("/tag/:inquiryId", authenticateUser, addTag);
 
 // Legg til flere tagger
 router.post("/tags/:inquiryId", authenticateUser, addTags);
+
+// Slett én tag
+router.delete("/tag/:inquiryId", authenticateUser, removeTag);
+
+// Slett flere tagger
+router.delete("/tags/:inquiryId", authenticateUser, removeTags);
 
 module.exports = router;
