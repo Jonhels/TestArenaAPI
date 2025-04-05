@@ -6,6 +6,7 @@ const {
   loginLimiter,
   resetPasswordLimiter,
 } = require("../middleware/rateLimiter");
+const upload = require("../middleware/uploadMiddleware");
 const {
   registerUser,
   loginUser,
@@ -16,6 +17,8 @@ const {
   requestPasswordReset,
   resetPassword,
   getProfile,
+  uploadProfileImage,
+  deleteProfileImage,
 } = require("../controllers/userController");
 
 // Public Routes (No Auth)
@@ -40,6 +43,17 @@ router.post(
 
 // Reset Password
 router.post("/reset-password", resetPassword);
+
+// Last opp profilbilde
+router.post(
+  "/profile-image",
+  authenticateUser,
+  upload.single("profileImage"),
+  uploadProfileImage
+);
+
+// Slett profilbilde
+router.delete("/profile-image", authenticateUser, deleteProfileImage);
 
 // Protected Routes (Auth Required)
 // Update User Info

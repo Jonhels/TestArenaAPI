@@ -3,6 +3,8 @@ const User = require("../models/userSchema");
 const createError = require("../utils/createError");
 const { hashPassword, comparePassword } = require("../utils/hashPassword");
 const validator = require("validator");
+const path = require("path");
+const fs = require("fs");
 
 let SMTPClient;
 (async () => {
@@ -63,7 +65,6 @@ const sendVerificationEmail = async (user) => {
   }
 };
 
-
 // Registrere ny bruker (med e-postbekreftelse)
 const registerUser = async (req, res, next) => {
   try {
@@ -114,7 +115,6 @@ const registerUser = async (req, res, next) => {
     next(error);
   }
 };
-
 
 // 	Logge inn bruker (JWT, cookie)
 const loginUser = async (req, res, next) => {
@@ -398,6 +398,75 @@ const getProfile = async (req, res, next) => {
   }
 };
 
+// Last opp profilbilde
+const uploadProfileImage = async (req, res, next) => {
+  try {
+    const userId = req.user._id;
+    const user = await User.findById(userId);
+
+    if (!user) {
+      return res.status(404).json({ error: "User not found." });
+    }
+
+    // Slett gammelt bilde hvis det finnes
+    if (user.profileImage) {
+      const oldImagePath = path.join(
+        __dirname,
+        "../uploads/profiles",
+        path.basename(user.profileImage)
+      );
+      if (fs.existsSync(oldImagePath)) {
+        fs.unlinkSync(oldImagePath);
+      }
+    }
+
+    // Lagre nytt bilde
+    user.profileImage = `/uploads/profiles/${req.file.filename}`;
+    await user.save();
+
+    res.status(200).json({
+      status: "success",
+      message: "Profile image uploaded successfully",
+      imageUrl: user.profileImage,
+    });
+  } catch (error) {
+    console.error("Error uploading profile image:", error);
+    next(error);
+  }
+};
+
+// Slett profilbilde
+const deleteProfileImage = async (req, res, next) => {
+  try {
+    const userId = req.user._id;
+    const user = await User.findById(userId);
+
+    if (!user || !user.profileImage) {
+      return res.status(404).json({ error: "Profile image not found." });
+    }
+
+    const imagePath = path.join(
+      __dirname,
+      "../uploads/profiles",
+      path.basename(user.profileImage)
+    );
+    if (fs.existsSync(imagePath)) {
+      fs.unlinkSync(imagePath);
+    }
+
+    user.profileImage = "";
+    await user.save();
+
+    res.status(200).json({
+      status: "success",
+      message: "Profile image deleted successfully",
+    });
+  } catch (error) {
+    console.error("Error deleting profile image:", error);
+    next(error);
+  }
+};
+
 module.exports = {
   registerUser,
   loginUser,
@@ -408,4 +477,6 @@ module.exports = {
   requestPasswordReset,
   resetPassword,
   getProfile,
+  uploadProfileImage,
+  deleteProfileImage,
 };

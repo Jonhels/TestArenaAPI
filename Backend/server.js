@@ -2,7 +2,6 @@ require("dotenv").config();
 const express = require("express");
 const dbConnect = require("./config/dbConnect");
 const mongoose = require("mongoose");
-const bodyParser = require("body-parser");
 const logger = require("morgan");
 const helmet = require("helmet");
 const cors = require("cors");
@@ -67,6 +66,9 @@ app.get("/", (req, res) => {
 // Mount the user and contacts routes with CORS options
 app.use("/api/users", cors(corsOptions), userRoutes);
 app.use("/api/contacts", cors(corsOptions), contactsRoutes); // Use contacts routes with CORS
+
+// Serve static files from the uploads directory
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 // Error-handling middleware
 app.use((err, req, res, next) => {
