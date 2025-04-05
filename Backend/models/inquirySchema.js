@@ -12,6 +12,19 @@ const inquirySchema = new mongoose.Schema(
       required: [true, "Inquiry description is required"],
       maxlength: [500, "Inquiry description cannot exceed 500 characters"],
     },
+    assignedTo: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
+    assignedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
+    assignedAt: {
+      type: Date,
+    },
     status: {
       type: String,
       enum: ["ny", "pågår", "fullført"],

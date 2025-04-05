@@ -153,6 +153,40 @@ const restoreInquiry = async (req, res) => {
   }
 };
 
+// Legge til admin til henvendelse
+const assignAdminToInquiry = async (req, res) => {
+  try {
+    const { id } = req.params; // inquiryId fra URL
+    const { adminId } = req.body; // adminId fra body
+
+    // Finn inquiry
+    const inquiry = await Inquiry.findById(id);
+    if (!inquiry) {
+      return res.status(404).json({ error: "Inquiry not found" });
+    }
+
+    // Finn admin
+    const admin = await User.findById(adminId);
+    if (!admin) {
+      return res.status(404).json({ error: "Admin user not found" });
+    }
+
+    // Oppdater inquiry
+    inquiry.assignedTo = admin._id;
+    inquiry.assignedBy = req.user._id;
+    inquiry.assignedAt = new Date();
+    await inquiry.save();
+
+    res.status(200).json({
+      status: "success",
+      message: "Admin assigned to inquiry successfully",
+      inquiry,
+    });
+  } catch (error) {
+    console.error("Error assigning admin:", error);
+    res.status(500).json({ error: "Server error" });
+  }
+};
 
 module.exports = {
   createInquiry,
@@ -161,5 +195,6 @@ module.exports = {
   updateInquiry,
   deleteInquiry,
   archiveInquiry,
-    restoreInquiry,
+  restoreInquiry,
+  assignAdminToInquiry,
 };
