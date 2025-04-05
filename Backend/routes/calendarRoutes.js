@@ -14,15 +14,31 @@ const authenticateUser = require("../utils/authenticateUser");
 const router = express.Router();
 
 // Protected routes (krever login)
-router.post("/", authenticateUser, createEvent); // Opprette ny kalenderhendelse
-router.get("/", authenticateUser, getAllEvents); // Hente alle hendelser (med filtrering)
-router.get("/:eventId", authenticateUser, getEventById); // Hente én spesifikk hendelse
-router.put("/:eventId", authenticateUser, updateEvent); // Oppdatere en hendelse
-router.delete("/:eventId", authenticateUser, deleteEvent); // Slette en hendelse
+
+// Opprette ny kalenderhendelse
+router.post("/", authenticateUser, createEvent);
+
+// Hente alle hendelser (med filtrering)
+router.get("/", authenticateUser, getAllEvents);
+
+// Hente én spesifikk hendelse
+router.get("/:eventId", authenticateUser, getEventById);
+
+// Oppdatere en hendelse
+router.put("/:eventId", authenticateUser, updateEvent);
+
+// Slette en hendelse
+router.delete("/:eventId", authenticateUser, deleteEvent);
 
 // Ekstra filtrerte visninger
-router.get("/filter/date", authenticateUser, getEventsByDate); // Hente hendelser for én dato
-router.get("/filter/week", authenticateUser, getEventsByWeek); // Hente hendelser for en uke
-router.get("/filter/month", authenticateUser, getEventsByMonth); // Hente hendelser for en måned
+
+// Hente hendelser for én dato
+router.get("/filter/date", authenticateUser, getEventsByDate);
+
+// Hente hendelser for en uke
+router.get("/filter/week", authenticateUser, getEventsByWeek);
+
+// Hente hendelser for en måned
+router.get("/filter/month", authenticateUser, getEventsByMonth);
 
 module.exports = router;

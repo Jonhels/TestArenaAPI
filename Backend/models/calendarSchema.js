@@ -37,14 +37,13 @@ const calendarEventSchema = new mongoose.Schema(
       ref: "Inquiry",
       default: null,
     },
-    // Hvem som er ansvarlig for møtet.
+    // Hvem som er ansvarlig for møtet
     assignedTo: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       default: null,
     },
-    // 	ID fra Outlook-kalender, for integrasjon med Microsoft kalender
-
+    //	ID fra Outlook-kalender, for integrasjon med Microsoft kalender
     outlookEventId: {
       type: String,
       default: null,
