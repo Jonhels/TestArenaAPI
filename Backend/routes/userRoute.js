@@ -17,6 +17,7 @@ const {
   requestPasswordReset,
   resetPassword,
   getProfile,
+  getAllProfiles,
   uploadProfileImage,
   deleteProfileImage,
 } = require("../controllers/userController");
@@ -64,5 +65,8 @@ router.delete("/delete", authenticateUser, deleteUser);
 
 // Get Current User Profile
 router.get("/profile", authenticateUser, getProfile);
+
+// Get All User Profiles (Admin Only)
+router.get("/profiles", authenticateUser, getAllProfiles);
 
 module.exports = router;
