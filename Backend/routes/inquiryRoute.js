@@ -8,6 +8,7 @@ const {
   archiveInquiry,
   restoreInquiry,
   assignAdminToInquiry,
+  addStatus,
   addComment,
   editComment,
   deleteComment,
@@ -43,6 +44,9 @@ router.put("/restore/:inquiryId", authenticateUser, restoreInquiry);
 
 // Tilordne en admin til en henvendelse
 router.put("/assign/:inquiryId", authenticateUser, assignAdminToInquiry);
+
+// Endre status på en henvendelse (ulest, i arbeid, ferdig)
+router.put("/status/:inquiryId", authenticateUser, updateStatus);
 
 // Kommentar-funksjonalitet på henvendelser
 

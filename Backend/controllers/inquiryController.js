@@ -121,13 +121,11 @@ const archiveInquiry = async (req, res) => {
       return res.status(404).json({ error: "Inquiry not found." });
     }
 
-    res
-      .status(200)
-      .json({
-        status: "success",
-        message: "Inquiry archived successfully.",
-        inquiry,
-      });
+    res.status(200).json({
+      status: "success",
+      message: "Inquiry archived successfully.",
+      inquiry,
+    });
   } catch (error) {
     console.error("Error archiving inquiry:", error);
     res.status(500).json({ error: "Failed to archive inquiry." });
@@ -151,13 +149,11 @@ const restoreInquiry = async (req, res) => {
     inquiry.archived = false;
     await inquiry.save();
 
-    res
-      .status(200)
-      .json({
-        status: "success",
-        message: "Inquiry restored successfully.",
-        inquiry,
-      });
+    res.status(200).json({
+      status: "success",
+      message: "Inquiry restored successfully.",
+      inquiry,
+    });
   } catch (error) {
     console.error("Error restoring inquiry:", error);
     res.status(500).json({ error: "Failed to restore inquiry." });
@@ -186,16 +182,46 @@ const assignAdminToInquiry = async (req, res) => {
 
     await inquiry.save();
 
-    res
-      .status(200)
-      .json({
-        status: "success",
-        message: "Admin assigned successfully.",
-        inquiry,
-      });
+    res.status(200).json({
+      status: "success",
+      message: "Admin assigned successfully.",
+      inquiry,
+    });
   } catch (error) {
     console.error("Error assigning admin:", error);
     res.status(500).json({ error: "Failed to assign admin." });
+  }
+};
+
+// Oppdatere status på en henvendelse
+const updateStatus = async (req, res) => {
+  try {
+    const { inquiryId } = req.params;
+    const { newStatus } = req.body;
+
+    // Tillatte statuser
+    const allowedStatuses = ["ulest", "i arbeid", "ferdig"];
+
+    if (!allowedStatuses.includes(newStatus)) {
+      return res.status(400).json({ error: "Invalid status value." });
+    }
+
+    const inquiry = await Inquiry.findById(inquiryId);
+    if (!inquiry) {
+      return res.status(404).json({ error: "Inquiry not found." });
+    }
+
+    inquiry.status = newStatus;
+    await inquiry.save();
+
+    res.status(200).json({
+      status: "success",
+      message: "Inquiry status updated successfully.",
+      inquiry,
+    });
+  } catch (error) {
+    console.error("Error updating status:", error);
+    res.status(500).json({ error: "Failed to update status." });
   }
 };
 
@@ -221,13 +247,11 @@ const addComment = async (req, res) => {
 
     await inquiry.save();
 
-    res
-      .status(200)
-      .json({
-        status: "success",
-        message: "Comment added successfully.",
-        inquiry,
-      });
+    res.status(200).json({
+      status: "success",
+      message: "Comment added successfully.",
+      inquiry,
+    });
   } catch (error) {
     console.error("Error adding comment:", error);
     res.status(500).json({ error: "Failed to add comment." });
@@ -265,13 +289,11 @@ const editComment = async (req, res) => {
     comment.text = text;
     await inquiry.save();
 
-    res
-      .status(200)
-      .json({
-        status: "success",
-        message: "Comment updated successfully.",
-        inquiry,
-      });
+    res.status(200).json({
+      status: "success",
+      message: "Comment updated successfully.",
+      inquiry,
+    });
   } catch (error) {
     console.error("Error editing comment:", error);
     res.status(500).json({ error: "Failed to edit comment." });
@@ -302,13 +324,11 @@ const deleteComment = async (req, res) => {
     comment.remove();
     await inquiry.save();
 
-    res
-      .status(200)
-      .json({
-        status: "success",
-        message: "Comment deleted successfully.",
-        inquiry,
-      });
+    res.status(200).json({
+      status: "success",
+      message: "Comment deleted successfully.",
+      inquiry,
+    });
   } catch (error) {
     console.error("Error deleting comment:", error);
     res.status(500).json({ error: "Failed to delete comment." });
@@ -324,6 +344,7 @@ module.exports = {
   archiveInquiry,
   restoreInquiry,
   assignAdminToInquiry,
+  updateStatus,
   addComment,
   editComment,
   deleteComment,
