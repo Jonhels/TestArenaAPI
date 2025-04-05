@@ -124,6 +124,36 @@ const archiveInquiry = async (req, res) => {
   }
 };
 
+// Gjenopprette en arkivert henvendelse
+const restoreInquiry = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const inquiry = await Inquiry.findById(id);
+
+    if (!inquiry) {
+      return res.status(404).json({ error: "Inquiry not found" });
+    }
+
+    if (!inquiry.archived) {
+      return res.status(400).json({ error: "Inquiry is not archived" });
+    }
+
+    inquiry.archived = false;
+    await inquiry.save();
+
+    res.status(200).json({
+      status: "success",
+      message: "Inquiry restored successfully",
+      inquiry,
+    });
+  } catch (error) {
+    console.error("Error restoring inquiry:", error);
+    res.status(500).json({ error: "Server error" });
+  }
+};
+
+
 module.exports = {
   createInquiry,
   getInquiries,
@@ -131,4 +161,5 @@ module.exports = {
   updateInquiry,
   deleteInquiry,
   archiveInquiry,
+    restoreInquiry,
 };
