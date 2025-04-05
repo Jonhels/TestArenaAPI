@@ -12,6 +12,7 @@ const cookieParser = require("cookie-parser");
 const userRoutes = require("./routes/userRoute");
 const inquiryRoutes = require("./routes/inquiryRoute");
 const contactsRoutes = require("./routes/contactsRoute");
+const calendarRoutes = require("./routes/calendarRoutes");
 
 // const route = require("./routes/route");
 const app = express(); // Create an express app
@@ -68,6 +69,7 @@ app.get("/", (req, res) => {
 app.use("/api/users", cors(corsOptions), userRoutes);
 app.use("/api/inquiries", inquiryRoutes);
 app.use("/api/contacts", cors(corsOptions), contactsRoutes); // Use contacts routes with CORS
+app.use("/api/calendar", calendarRoutes);
 
 // Serve static files from the uploads directory
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
