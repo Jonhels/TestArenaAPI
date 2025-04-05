@@ -17,6 +17,10 @@ const inquirySchema = new mongoose.Schema(
       enum: ["ny", "pågår", "fullført"],
       default: "ny",
     },
+    archived: {
+      type: Boolean,
+      default: false,
+    },
   },
   { timestamps: true }
 );
