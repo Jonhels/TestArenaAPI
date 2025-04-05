@@ -10,6 +10,7 @@ const cookieParser = require("cookie-parser");
 
 // Import routes from the routes folder
 const userRoutes = require("./routes/userRoute");
+const inquiryRoutes = require("./routes/inquiryRoute");
 const contactsRoutes = require("./routes/contactsRoute");
 
 // const route = require("./routes/route");
@@ -65,6 +66,7 @@ app.get("/", (req, res) => {
 
 // Mount the user and contacts routes with CORS options
 app.use("/api/users", cors(corsOptions), userRoutes);
+app.use("/api/inquiries", inquiryRoutes);
 app.use("/api/contacts", cors(corsOptions), contactsRoutes); // Use contacts routes with CORS
 
 // Serve static files from the uploads directory
