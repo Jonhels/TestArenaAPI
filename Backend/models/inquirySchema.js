@@ -34,6 +34,10 @@ const inquirySchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    tags: {
+      type: [String],
+      default: [],
+    },
     comments: [
       {
         text: {
