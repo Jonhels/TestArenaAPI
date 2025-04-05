@@ -2,6 +2,7 @@ const express = require("express");
 const {
   createInquiry,
   getInquiries,
+  getAllInquiries,
   getInquiryById,
   updateInquiry,
   deleteInquiry,
@@ -17,7 +18,7 @@ const router = express.Router();
 router.post("/", createInquiry); // Opprette ny henvendelse (offentlig)
 
 // Protected Routes (Auth Required)
-router.get("/", authenticateUser, getInquiries); // Hente alle henvendelser
+router.get("/", authenticateUser, getAllInquiries); // Hente alle henvendelser
 router.get("/:id", authenticateUser, getInquiryById); // Hente én spesifikk henvendelse
 router.put("/:id", authenticateUser, updateInquiry); // Oppdatere en henvendelse
 router.delete("/:id", authenticateUser, deleteInquiry); // Slette en henvendelse

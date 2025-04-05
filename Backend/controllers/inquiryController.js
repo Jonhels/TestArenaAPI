@@ -1,4 +1,5 @@
 const Inquiry = require("../models/inquirySchema");
+const User = require("../models/userSchema");
 
 // Opprette henvendelse
 const createInquiry = async (req, res) => {
@@ -19,18 +20,30 @@ const createInquiry = async (req, res) => {
   }
 };
 
-// Hente alle henvendelser
-const getInquiries = async (req, res) => {
+// Hente henvendelser
+const getAllInquiries = async (req, res) => {
   try {
-    const { includeArchived } = req.query;
+    const { status, assignedTo, includeArchived } = req.query;
 
     const filter = {};
 
+    // Ikke vis arkiverte hvis ikke spesifisert
     if (includeArchived !== "true") {
-      filter.archived = false; // Skjul arkiverte med mindre spurt
+      filter.archived = false;
+    }
+
+    // Filtrer på status hvis oppgitt
+    if (status) {
+      filter.status = status;
+    }
+
+    // Filtrer på hvem henvendelsen er tildelt hvis oppgitt
+    if (assignedTo) {
+      filter.assignedTo = assignedTo;
     }
 
     const inquiries = await Inquiry.find(filter).sort({ createdAt: -1 });
+
     res.status(200).json({ status: "success", inquiries });
   } catch (error) {
     console.error("Error fetching inquiries:", error);
@@ -190,7 +203,7 @@ const assignAdminToInquiry = async (req, res) => {
 
 module.exports = {
   createInquiry,
-  getInquiries,
+  getAllInquiries,
   getInquiryById,
   updateInquiry,
   deleteInquiry,
