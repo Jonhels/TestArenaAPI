@@ -8,10 +8,12 @@ const {
   archiveInquiry,
   restoreInquiry,
   assignAdminToInquiry,
-  addStatus,
+  updateStatus,
   addComment,
   editComment,
   deleteComment,
+  addTag,
+  addTags,
 } = require("../controllers/inquiryController");
 const authenticateUser = require("../utils/authenticateUser");
 
@@ -62,5 +64,13 @@ router.delete(
   authenticateUser,
   deleteComment
 );
+
+// Tagger-funksjonalitet på henvendelser
+
+// Legg til én tag
+router.post("/tag/:inquiryId", authenticateUser, addTag);
+
+// Legg til flere tagger
+router.post("/tags/:inquiryId", authenticateUser, addTags);
 
 module.exports = router;

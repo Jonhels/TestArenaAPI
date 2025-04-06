@@ -36,6 +36,9 @@ const getAllInquiries = async (req, res) => {
     if (assignedTo) {
       filter.assignedTo = assignedTo;
     }
+    if (tag) {
+      filter.tags = { $in: [tag.toLowerCase()] };
+    }
 
     const inquiries = await Inquiry.find(filter).sort({ createdAt: -1 });
 
@@ -335,6 +338,66 @@ const deleteComment = async (req, res) => {
   }
 };
 
+// Legge til en tag
+const addTag = async (req, res) => {
+  try {
+    const { inquiryId } = req.params;
+    const { tag } = req.body;
+
+    if (!tag || typeof tag !== "string") {
+      return res.status(400).json({ error: "Tag must be a non-empty string." });
+    }
+
+    const normalizedTag = tag.trim().toLowerCase();
+
+    const inquiry = await Inquiry.findById(inquiryId);
+    if (!inquiry) {
+      return res.status(404).json({ error: "Inquiry not found." });
+    }
+
+    if (!inquiry.tags.includes(normalizedTag)) {
+      inquiry.tags.push(normalizedTag);
+      await inquiry.save();
+    }
+
+    res.status(200).json({ status: "success", inquiry });
+  } catch (error) {
+    console.error("Error adding tag:", error);
+    res.status(500).json({ error: "Failed to add tag." });
+  }
+};
+
+const addTags = async (req, res) => {
+  try {
+    const { inquiryId } = req.params;
+    const { tags } = req.body;
+
+    if (!Array.isArray(tags) || tags.length === 0) {
+      return res.status(400).json({ error: "Tags must be a non-empty array." });
+    }
+
+    const normalizedTags = tags.map((tag) => tag.trim().toLowerCase());
+
+    const inquiry = await Inquiry.findById(inquiryId);
+    if (!inquiry) {
+      return res.status(404).json({ error: "Inquiry not found." });
+    }
+
+    normalizedTags.forEach((tag) => {
+      if (tag && !inquiry.tags.includes(tag)) {
+        inquiry.tags.push(tag);
+      }
+    });
+
+    await inquiry.save();
+
+    res.status(200).json({ status: "success", inquiry });
+  } catch (error) {
+    console.error("Error adding tags:", error);
+    res.status(500).json({ error: "Failed to add tags." });
+  }
+};
+
 module.exports = {
   createInquiry,
   getAllInquiries,
@@ -348,4 +411,6 @@ module.exports = {
   addComment,
   editComment,
   deleteComment,
+  addTag,
+  addTags,
 };
