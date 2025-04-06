@@ -118,14 +118,17 @@ const refreshAccessToken = async (refreshToken, email) => {
     { headers: { "Content-Type": "application/x-www-form-urlencoded" } }
   );
 
-  const { access_token } = response.data;
+  const { access_token, refresh_token: new_refresh_token } = response.data;
 
-  await MicrosoftToken.findOneAndUpdate(
-    { userEmail: email },
-    { accessToken: access_token }
-  );
+  const updateData = { accessToken: access_token };
 
-  console.log("🔁 Refreshed Access Token for", email);
+  if (new_refresh_token) {
+    updateData.refreshToken = new_refresh_token;
+  }
+
+  await MicrosoftToken.findOneAndUpdate({ userEmail: email }, updateData);
+
+  console.log("Refreshed Access Token for", email);
   return access_token;
 };
 
