@@ -7,16 +7,22 @@ const {
   deleteInquiry,
   archiveInquiry,
   restoreInquiry,
+  assignAdminToInquiry,
 } = require("../controllers/inquiryController");
+const authenticateUser = require("../utils/authenticateUser");
 
 const router = express.Router();
 
-router.post("/", createInquiry); // Opprette ny henvendelse
-router.get("/", getInquiries); // Hente alle henvendelser
-router.get("/:id", getInquiryById); // Hente spesifikk henvendelse
-router.put("/:id", updateInquiry); // Oppdatere henvendelse
-router.delete("/:id", deleteInquiry); // Slette henvendelse
-router.put("/archive/:id", archiveInquiry); // Arkivere henvendelse
-router.put("/restore/:id", restoreInquiry); // Gjenopprette arkivert henvendelse
+// Public Routes (No Auth)
+router.post("/", createInquiry); // Opprette ny henvendelse (offentlig)
+
+// Protected Routes (Auth Required)
+router.get("/", authenticateUser, getInquiries); // Hente alle henvendelser
+router.get("/:id", authenticateUser, getInquiryById); // Hente én spesifikk henvendelse
+router.put("/:id", authenticateUser, updateInquiry); // Oppdatere en henvendelse
+router.delete("/:id", authenticateUser, deleteInquiry); // Slette en henvendelse
+router.put("/archive/:id", authenticateUser, archiveInquiry); // Arkivere en henvendelse
+router.put("/restore/:id", authenticateUser, restoreInquiry); // Gjenopprette en arkivert henvendelse
+router.put("/assign/:id", authenticateUser, assignAdminToInquiry); // Tilordne admin til henvendelse
 
 module.exports = router;
