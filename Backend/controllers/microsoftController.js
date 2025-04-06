@@ -21,6 +21,9 @@ if (!process.env.MICROSOFT_SCOPES) {
 const loginToMicrosoft = (req, res) => {
   const scopes = process.env.MICROSOFT_SCOPES;
 
+  const state = crypto.randomBytes(16).toString("hex"); // 32-tegn random string
+  req.session.oauthState = state;
+
   const authorizeUrl =
     `https://login.microsoftonline.com/${tenant}/oauth2/v2.0/authorize?` +
     `client_id=${clientId}` +
@@ -28,18 +31,27 @@ const loginToMicrosoft = (req, res) => {
     `&redirect_uri=${encodeURIComponent(redirectUri)}` +
     `&response_mode=query` +
     `&scope=${encodeURIComponent(scopes)}` +
-    `&state=12345`;
+    `&state=${state}`;
 
   res.redirect(authorizeUrl);
 };
 
 // Microsoft callback (exchange code for tokens)
 const handleMicrosoftCallback = async (req, res) => {
-  const { code } = req.query;
-  if (!code)
+  const { code, state } = req.query;
+
+  // Sjekk state
+  if (!state || state !== req.session.oauthState) {
+    return res.status(400).json({ error: "Invalid state parameter." });
+  }
+
+  // Sjekk code
+  if (!code) {
     return res.status(400).json({ error: "No code provided from Microsoft." });
+  }
 
   try {
+    // Fortsett som før (hente tokens osv.)
     const tokenResponse = await axios.post(
       `https://login.microsoftonline.com/${tenant}/oauth2/v2.0/token`,
       querystring.stringify({
@@ -54,11 +66,9 @@ const handleMicrosoftCallback = async (req, res) => {
 
     const { access_token, refresh_token } = tokenResponse.data;
 
-    // Hent brukerinfo
     const userInfo = await getMicrosoftUserInfo(access_token);
     const email = userInfo.mail || userInfo.userPrincipalName;
 
-    // Lagre tokens i MongoDB
     await MicrosoftToken.findOneAndUpdate(
       { userEmail: email },
       {
@@ -70,7 +80,6 @@ const handleMicrosoftCallback = async (req, res) => {
       { upsert: true, new: true }
     );
 
-    // Lagre brukerinfo i session
     req.session.microsoft = {
       email,
       name: userInfo.displayName,
