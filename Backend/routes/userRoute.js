@@ -1,43 +1,72 @@
 const express = require("express");
-const { 
-    registerUser, 
-    loginUser, 
-    logoutUser, 
-    updateUser, 
-    deleteUser,
-    verifyEmail,
-    requestPasswordReset,
-    resetPassword,
-    getProfile,
-    resetPasswordLimiter
-} = require("../controllers/userController");
-const authenticateUser = require("../utils/authenticateUser")
-
 const router = express.Router();
 
+const authenticateUser = require("../utils/authenticateUser");
+const {
+  loginLimiter,
+  resetPasswordLimiter,
+} = require("../middleware/rateLimiter");
+const upload = require("../middleware/uploadMiddleware");
+const {
+  registerUser,
+  loginUser,
+  logoutUser,
+  updateUser,
+  deleteUser,
+  verifyEmail,
+  requestPasswordReset,
+  resetPassword,
+  getProfile,
+  getAllProfiles,
+  uploadProfileImage,
+  deleteProfileImage,
+} = require("../controllers/userController");
+
+// Public Routes (No Auth)
 // User Registration
 router.post("/register", registerUser);
 
-// User Login
-router.post("/login", loginUser);
+// User Login (with rate limiting)
+router.post("/login", loginLimiter, loginUser);
 
 // User Logout
 router.post("/logout", logoutUser);
 
-// Update User Information, protected route with authenticateUser 
-router.put("/update",authenticateUser, updateUser);
-
-// Delete User Account, protected route with authenticateUser 
-router.delete("/delete", authenticateUser, deleteUser);
-
-// Email verification route
+// Email Verification
 router.get("/verify-email", verifyEmail);
 
-// Password Recovery
-router.post("/password-reset-request",resetPasswordLimiter, requestPasswordReset);
+// Request Password Reset (with rate limiting)
+router.post(
+  "/password-reset-request",
+  resetPasswordLimiter,
+  requestPasswordReset
+);
+
+// Reset Password
 router.post("/reset-password", resetPassword);
 
-// Fetch User Profile
+// Last opp profilbilde
+router.post(
+  "/profile-image",
+  authenticateUser,
+  upload.single("profileImage"),
+  uploadProfileImage
+);
+
+// Slett profilbilde
+router.delete("/profile-image", authenticateUser, deleteProfileImage);
+
+// Protected Routes (Auth Required)
+// Update User Info
+router.put("/update", authenticateUser, updateUser);
+
+// Delete User Account
+router.delete("/delete", authenticateUser, deleteUser);
+
+// Get Current User Profile
 router.get("/profile", authenticateUser, getProfile);
+
+// Get All User Profiles (Admin Only)
+router.get("/profiles", authenticateUser, getAllProfiles);
 
 module.exports = router;
