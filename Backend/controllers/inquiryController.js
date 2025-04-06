@@ -1,5 +1,6 @@
 const Inquiry = require("../models/inquirySchema");
 const User = require("../models/userSchema");
+const sendInquiryNotification = require("../utils/sendInquiryNotification");
 
 // Opprette en ny henvendelse
 const createInquiry = async (req, res) => {
@@ -13,6 +14,12 @@ const createInquiry = async (req, res) => {
     }
 
     const inquiry = await Inquiry.create({ title, description, status });
+
+    // Send e-postvarsel til admins
+    sendInquiryNotification(inquiry).catch((err) => {
+      console.error("Failed to send inquiry notification email:", err);
+    });
+
     res.status(201).json({ status: "success", inquiry });
   } catch (error) {
     console.error("Error creating inquiry:", error);
@@ -421,13 +428,11 @@ const removeTag = async (req, res) => {
     inquiry.tags = inquiry.tags.filter((t) => t !== normalizedTag);
     await inquiry.save();
 
-    res
-      .status(200)
-      .json({
-        status: "success",
-        message: "Tag removed successfully.",
-        inquiry,
-      });
+    res.status(200).json({
+      status: "success",
+      message: "Tag removed successfully.",
+      inquiry,
+    });
   } catch (error) {
     console.error("Error removing tag:", error);
     res.status(500).json({ error: "Failed to remove tag." });
@@ -435,31 +440,34 @@ const removeTag = async (req, res) => {
 };
 
 const removeTags = async (req, res) => {
-    try {
-      const { inquiryId } = req.params;
-      const { tags } = req.body;
-  
-      if (!Array.isArray(tags) || tags.length === 0) {
-        return res.status(400).json({ error: "Tags must be a non-empty array." });
-      }
-  
-      const normalizedTags = tags.map(tag => tag.trim().toLowerCase());
-  
-      const inquiry = await Inquiry.findById(inquiryId);
-      if (!inquiry) {
-        return res.status(404).json({ error: "Inquiry not found." });
-      }
-  
-      inquiry.tags = inquiry.tags.filter(tag => !normalizedTags.includes(tag));
-      await inquiry.save();
-  
-      res.status(200).json({ status: "success", message: "Tags removed successfully.", inquiry });
-    } catch (error) {
-      console.error("Error removing tags:", error);
-      res.status(500).json({ error: "Failed to remove tags." });
+  try {
+    const { inquiryId } = req.params;
+    const { tags } = req.body;
+
+    if (!Array.isArray(tags) || tags.length === 0) {
+      return res.status(400).json({ error: "Tags must be a non-empty array." });
     }
-  };
-  
+
+    const normalizedTags = tags.map((tag) => tag.trim().toLowerCase());
+
+    const inquiry = await Inquiry.findById(inquiryId);
+    if (!inquiry) {
+      return res.status(404).json({ error: "Inquiry not found." });
+    }
+
+    inquiry.tags = inquiry.tags.filter((tag) => !normalizedTags.includes(tag));
+    await inquiry.save();
+
+    res.status(200).json({
+      status: "success",
+      message: "Tags removed successfully.",
+      inquiry,
+    });
+  } catch (error) {
+    console.error("Error removing tags:", error);
+    res.status(500).json({ error: "Failed to remove tags." });
+  }
+};
 
 module.exports = {
   createInquiry,

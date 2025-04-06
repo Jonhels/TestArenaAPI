@@ -26,7 +26,6 @@ const userSchema = new mongoose.Schema({
   passwordChangedAt: {
     type: Date,
   },
-  // Timestamp for user creation
   timestamp: {
     type: Date,
     default: Date.now,
@@ -34,6 +33,11 @@ const userSchema = new mongoose.Schema({
   profileImage: {
     type: String,
     default: "",
+  },
+  // Administratorer kan velge om de vil få e-poster eller ikke
+  emailNotifications: {
+    type: Boolean,
+    default: true,
   },
 });
 
