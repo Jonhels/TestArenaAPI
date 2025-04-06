@@ -1,4 +1,8 @@
+const crypto = require("crypto");
+const axios = require("axios");
+const querystring = require("querystring");
 const MicrosoftToken = require("../models/microsoftToken");
+const { SessionExpiredError } = require("../utils/errors");
 const {
   getOutlookCalendar,
   createOutlookEvent,
@@ -6,23 +10,19 @@ const {
   getMicrosoftUserInfo,
 } = require("../utils/outlookUtil");
 
-const crypto = require("crypto");
-const axios = require("axios");
-const querystring = require("querystring");
-
 const clientId = process.env.MICROSOFT_CLIENT_ID;
 const clientSecret = process.env.MICROSOFT_CLIENT_SECRET;
 const redirectUri = process.env.MICROSOFT_REDIRECT_URI;
 const tenant = process.env.MICROSOFT_TENANT_ID;
-if (!process.env.MICROSOFT_SCOPES) {
+const scopes = process.env.MICROSOFT_SCOPES;
+
+if (!scopes) {
   throw new Error("MICROSOFT_SCOPES is not set in environment variables.");
 }
 
-// Send bruker til Microsoft login
+// Login til Microsoft
 const loginToMicrosoft = (req, res) => {
-  const scopes = process.env.MICROSOFT_SCOPES;
-
-  const state = crypto.randomBytes(16).toString("hex"); // 32-tegn random string
+  const state = crypto.randomBytes(16).toString("hex");
   req.session.oauthState = state;
 
   const authorizeUrl =
@@ -37,22 +37,19 @@ const loginToMicrosoft = (req, res) => {
   res.redirect(authorizeUrl);
 };
 
-// Microsoft callback (exchange code for tokens)
+// Callback fra Microsoft
 const handleMicrosoftCallback = async (req, res) => {
   const { code, state } = req.query;
 
-  // Sjekk state
   if (!state || state !== req.session.oauthState) {
     return res.status(400).json({ error: "Invalid state parameter." });
   }
 
-  // Sjekk code
   if (!code) {
     return res.status(400).json({ error: "No code provided from Microsoft." });
   }
 
   try {
-    // Fortsett som før (hente tokens osv.)
     const tokenResponse = await axios.post(
       `https://login.microsoftonline.com/${tenant}/oauth2/v2.0/token`,
       querystring.stringify({
@@ -99,7 +96,7 @@ const handleMicrosoftCallback = async (req, res) => {
   }
 };
 
-// Logg ut
+// Logg ut Microsoft
 const logoutMicrosoft = (req, res) => {
   req.session.destroy(() => {
     res.clearCookie("connect.sid");
@@ -128,12 +125,12 @@ const refreshAccessToken = async (refreshToken, email) => {
     { accessToken: access_token }
   );
 
-  console.log("Refreshed Access Token for", email);
+  console.log("🔁 Refreshed Access Token for", email);
   return access_token;
 };
 
-// Automatisk håndtering av 401-feil
-const withAutoRefresh = async (req, res, userEmail, action) => {
+// Automatisk refresh på 401
+const withAutoRefresh = async (userEmail, action) => {
   const tokenDoc = await MicrosoftToken.findOne({ userEmail });
   if (!tokenDoc) throw new Error("No tokens found for user.");
 
@@ -141,7 +138,7 @@ const withAutoRefresh = async (req, res, userEmail, action) => {
     return await action(tokenDoc.accessToken);
   } catch (error) {
     if (error.response?.status === 401) {
-      console.log("Access token expired. Refreshing...");
+      console.log("Access token expired. Trying to refresh...");
       try {
         const newAccessToken = await refreshAccessToken(
           tokenDoc.refreshToken,
@@ -149,33 +146,29 @@ const withAutoRefresh = async (req, res, userEmail, action) => {
         );
         return await action(newAccessToken);
       } catch (refreshError) {
-        console.error("Failed to refresh token. Destroying session.");
-        req.session.destroy(() => {
-          res.clearCookie("connect.sid");
-          res
-            .status(401)
-            .json({ error: "Session expired. Please login again." });
-        });
-        throw new Error("Session expired.");
+        console.error("Failed to refresh token.");
+        throw new SessionExpiredError();
       }
     }
     throw error;
   }
 };
 
-// Hente Outlook-kalender
+// Hent Kalender
 const getCalendarEvents = async (req, res) => {
   try {
     const { microsoft } = req.session;
-    const events = await withAutoRefresh(
-      req,
-      res,
-      microsoft.email,
-      getOutlookCalendar
-    );
+    const events = await withAutoRefresh(microsoft.email, getOutlookCalendar);
 
     res.status(200).json({ status: "success", events, user: microsoft });
   } catch (error) {
+    if (error instanceof SessionExpiredError) {
+      req.session.destroy(() => {
+        res.clearCookie("connect.sid");
+        res.status(401).json({ error: error.message });
+      });
+      return;
+    }
     console.error(
       "Failed to fetch Outlook calendar:",
       error.response?.data || error.message
@@ -186,7 +179,7 @@ const getCalendarEvents = async (req, res) => {
   }
 };
 
-// Opprette Outlook-kalenderhendelse
+// Lag Kalender Event
 const createCalendarEvent = async (req, res) => {
   try {
     const { microsoft } = req.session;
@@ -204,12 +197,19 @@ const createCalendarEvent = async (req, res) => {
       location: { displayName: location || "" },
     };
 
-    const newEvent = await withAutoRefresh(req, res, microsoft.email, (token) =>
+    const newEvent = await withAutoRefresh(microsoft.email, (token) =>
       createOutlookEvent(token, eventData)
     );
 
     res.status(201).json({ status: "success", event: newEvent });
   } catch (error) {
+    if (error instanceof SessionExpiredError) {
+      req.session.destroy(() => {
+        res.clearCookie("connect.sid");
+        res.status(401).json({ error: error.message });
+      });
+      return;
+    }
     console.error(
       "Failed to create Outlook event:",
       error.response?.data || error.message
@@ -220,7 +220,7 @@ const createCalendarEvent = async (req, res) => {
   }
 };
 
-// Slette Outlook-kalenderhendelse
+// Slett Kalender Event
 const deleteCalendarEvent = async (req, res) => {
   try {
     const { microsoft } = req.session;
@@ -230,7 +230,7 @@ const deleteCalendarEvent = async (req, res) => {
       return res.status(400).json({ error: "Missing eventId." });
     }
 
-    await withAutoRefresh(req, res, microsoft.email, (token) =>
+    await withAutoRefresh(microsoft.email, (token) =>
       deleteOutlookEvent(token, eventId)
     );
 
@@ -238,6 +238,13 @@ const deleteCalendarEvent = async (req, res) => {
       .status(200)
       .json({ status: "success", message: "Event deleted successfully." });
   } catch (error) {
+    if (error instanceof SessionExpiredError) {
+      req.session.destroy(() => {
+        res.clearCookie("connect.sid");
+        res.status(401).json({ error: error.message });
+      });
+      return;
+    }
     console.error(
       "Failed to delete Outlook event:",
       error.response?.data || error.message
@@ -248,7 +255,7 @@ const deleteCalendarEvent = async (req, res) => {
   }
 };
 
-// Sjekk login-status (for frontend)
+// Sjekk Login-Status
 const getMicrosoftAuthStatus = (req, res) => {
   if (req.session && req.session.microsoft) {
     return res.status(200).json({
@@ -263,10 +270,11 @@ const getMicrosoftAuthStatus = (req, res) => {
   }
 };
 
+// Eksport
 module.exports = {
   loginToMicrosoft,
-  logoutMicrosoft,
   handleMicrosoftCallback,
+  logoutMicrosoft,
   getCalendarEvents,
   createCalendarEvent,
   deleteCalendarEvent,
