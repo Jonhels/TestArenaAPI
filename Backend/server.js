@@ -1,58 +1,66 @@
 require("dotenv").config();
 const express = require("express");
-const dbConnect = require("./config/dbConnect");
 const mongoose = require("mongoose");
-const logger = require("morgan");
 const helmet = require("helmet");
+const morgan = require("morgan");
 const cors = require("cors");
-const path = require("path");
 const cookieParser = require("cookie-parser");
+const session = require("express-session");
+const MongoStore = require("connect-mongo");
+const path = require("path");
 
-// Import routes from the routes folder
+// Database connection
+const dbConnect = require("./config/dbConnect");
+
+// Import routes
 const userRoutes = require("./routes/userRoute");
 const inquiryRoutes = require("./routes/inquiryRoute");
 const contactsRoutes = require("./routes/contactsRoute");
 const calendarRoutes = require("./routes/calendarRoutes");
+const microsoftRoutes = require("./routes/microsoftRoutes");
 
-// const route = require("./routes/route");
-const app = express(); // Create an express app
-app.use(logger("tiny")); // Log http request to the console
-app.use(helmet()); // Secure the app through different HTTP headers
+// Init app
+const app = express();
+
+// Middleware
+app.use(morgan("tiny")); // Log requests
+app.use(helmet()); // Secure HTTP headers
 app.use(cookieParser());
+app.use(express.json()); // Parse JSON bodies
 
-// Parse incoming requests to JSON (i nyere versjon av Express trengs ikke body-parser som eget bibliotek, da det er innebygd)
-app.use(express.json());
-// {}
-// Connect to the database and start the server
-dbConnect()
-  .then(() => {
-    const PORT = process.env.PORT || 4000;
-    app.listen(PORT, () => {
-      console.log(`Server is running on port ${PORT}`);
-    });
+// Setup sessions
+app.use(
+  session({
+    secret: process.env.SESSION_SECRET, // Must exist in .env
+    resave: false,
+    saveUninitialized: false,
+    store: MongoStore.create({
+      mongoUrl: process.env.MONGO_URI,
+      ttl: 14 * 24 * 60 * 60, // Session valid for 14 days
+    }),
+    cookie: {
+      maxAge: 14 * 24 * 60 * 60 * 1000, // 14 days
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production", // HTTPS cookies only in production
+    },
   })
-  .catch((err) => {
-    console.error("Failed to connect to database:", err);
-    process.exit(1);
-  });
+);
 
-// cors
+// CORS setup
 const whitelist = [
   "https://testarena-production.up.railway.app",
   "http://localhost:5173",
   process.env.FRONTEND_URL,
-]; // Array of allowed origins
+];
+
 const corsOptions = {
   origin: (origin, callback) => {
     if (!origin) {
-      // Explicitly block requests with no Origin header
       console.error("CORS Error: Missing Origin header");
       callback(new Error("Access denied. Missing Origin header."));
     } else if (whitelist.includes(origin)) {
-      // Allow whitelisted origins
       callback(null, true);
     } else {
-      // Block other origins
       console.error(`CORS Error: Origin ${origin} not allowed`);
       callback(new Error("Access denied. Origin not allowed by CORS."));
     }
@@ -65,45 +73,35 @@ app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "templates", "index.html"));
 });
 
-// Mount the user and contacts routes with CORS options
 app.use("/api/users", cors(corsOptions), userRoutes);
-app.use("/api/inquiries", inquiryRoutes);
-app.use("/api/contacts", cors(corsOptions), contactsRoutes); // Use contacts routes with CORS
-app.use("/api/calendar", calendarRoutes);
+app.use("/api/inquiries", cors(corsOptions), inquiryRoutes);
+app.use("/api/contacts", cors(corsOptions), contactsRoutes);
+app.use("/api/calendar", cors(corsOptions), calendarRoutes);
+app.use("/api/microsoft", cors(corsOptions), microsoftRoutes);
 
-// Serve static files from the uploads directory
+// Serve static files
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
-// Error-handling middleware
+// Error Handling
 app.use((err, req, res, next) => {
   if (err.message.includes("CORS")) {
-    // Handle CORS errors
     return res.status(403).json({ error: "Access denied by CORS policy." });
   }
-
   if (err.name === "ValidationError") {
-    // Handle validation errors
     return res.status(400).json({ error: err.message });
   }
-
   if (err.name === "AuthenticationError") {
-    // Handle authentication errors
     return res.status(401).json({ error: err.message });
   }
-
   if (err.message) {
-    // For other known errors, use the message
     return res.status(400).json({ error: err.message });
   }
 
-  // Log the stack trace for unexpected errors
   console.error("Unhandled Error:", err.stack);
-
-  // Send a generic error response for unexpected errors
   res.status(500).json({ error: "An internal server error occurred." });
 });
 
-// Shutdown gracefully
+// Graceful Shutdown
 const gracefulShutdown = async () => {
   console.log("Shutting down gracefully...");
   await mongoose.connection.close();
@@ -111,5 +109,18 @@ const gracefulShutdown = async () => {
   process.exit(0);
 };
 
-process.on("SIGINT", gracefulShutdown); // Listen for ctrl+C
-process.on("SIGTERM", gracefulShutdown); // Listen for the SIGTERM (process manager shutdown process)
+process.on("SIGINT", gracefulShutdown);
+process.on("SIGTERM", gracefulShutdown);
+
+// Start Server
+dbConnect()
+  .then(() => {
+    const PORT = process.env.PORT || 4000;
+    app.listen(PORT, () => {
+      console.log(`🚀 Server running on http://localhost:${PORT}`);
+    });
+  })
+  .catch((err) => {
+    console.error("Failed to connect to database:", err);
+    process.exit(1);
+  });
