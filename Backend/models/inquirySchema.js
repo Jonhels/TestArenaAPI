@@ -34,6 +34,23 @@ const inquirySchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    comments: [
+      {
+        text: {
+          type: String,
+          required: true,
+        },
+        admin: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "User",
+          required: true,
+        },
+        createdAt: {
+          type: Date,
+          default: Date.now,
+        },
+      },
+    ],
   },
   { timestamps: true }
 );

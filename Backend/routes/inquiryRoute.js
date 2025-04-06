@@ -1,7 +1,6 @@
 const express = require("express");
 const {
   createInquiry,
-  getInquiries,
   getAllInquiries,
   getInquiryById,
   updateInquiry,
@@ -9,21 +8,55 @@ const {
   archiveInquiry,
   restoreInquiry,
   assignAdminToInquiry,
+  addComment,
+  editComment,
+  deleteComment,
 } = require("../controllers/inquiryController");
 const authenticateUser = require("../utils/authenticateUser");
 
 const router = express.Router();
 
-// Public Routes (No Auth)
-router.post("/", createInquiry); // Opprette ny henvendelse (offentlig)
+// Public Route (no authentication needed)
 
-// Protected Routes (Auth Required)
-router.get("/", authenticateUser, getAllInquiries); // Hente alle henvendelser
-router.get("/:id", authenticateUser, getInquiryById); // Hente én spesifikk henvendelse
-router.put("/:id", authenticateUser, updateInquiry); // Oppdatere en henvendelse
-router.delete("/:id", authenticateUser, deleteInquiry); // Slette en henvendelse
-router.put("/archive/:id", authenticateUser, archiveInquiry); // Arkivere en henvendelse
-router.put("/restore/:id", authenticateUser, restoreInquiry); // Gjenopprette en arkivert henvendelse
-router.put("/assign/:id", authenticateUser, assignAdminToInquiry); // Tilordne admin til henvendelse
+// Opprett en ny henvendelse (offentlig skjema)
+router.post("/", createInquiry);
+
+// Protected Routes (authentication required)
+
+// Hent alle henvendelser (med filtrering)
+router.get("/", authenticateUser, getAllInquiries);
+
+// Hent én spesifikk henvendelse
+router.get("/:inquiryId", authenticateUser, getInquiryById);
+
+// Oppdater en spesifikk henvendelse
+router.put("/:inquiryId", authenticateUser, updateInquiry);
+
+// Slett en spesifikk henvendelse
+router.delete("/:inquiryId", authenticateUser, deleteInquiry);
+
+// Arkiver en henvendelse
+router.put("/archive/:inquiryId", authenticateUser, archiveInquiry);
+
+// Gjenopprett en arkivert henvendelse
+router.put("/restore/:inquiryId", authenticateUser, restoreInquiry);
+
+// Tilordne en admin til en henvendelse
+router.put("/assign/:inquiryId", authenticateUser, assignAdminToInquiry);
+
+// Kommentar-funksjonalitet på henvendelser
+
+// Legg til en kommentar på en henvendelse
+router.post("/comment/:inquiryId", authenticateUser, addComment);
+
+// Rediger en kommentar
+router.put("/comment/:inquiryId/:commentId", authenticateUser, editComment);
+
+// Slett en kommentar
+router.delete(
+  "/comment/:inquiryId/:commentId",
+  authenticateUser,
+  deleteComment
+);
 
 module.exports = router;
