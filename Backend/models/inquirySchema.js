@@ -27,8 +27,8 @@ const inquirySchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ["ny", "pågår", "fullført"],
-      default: "ny",
+      enum: ["ulest", "i arbeid", "ferdig"],
+      default: "ulest",
     },
     archived: {
       type: Boolean,
