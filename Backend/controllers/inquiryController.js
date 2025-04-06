@@ -398,6 +398,69 @@ const addTags = async (req, res) => {
   }
 };
 
+const removeTag = async (req, res) => {
+  try {
+    const { inquiryId } = req.params;
+    const { tag } = req.body;
+
+    if (!tag || typeof tag !== "string") {
+      return res.status(400).json({ error: "Tag must be a non-empty string." });
+    }
+
+    const normalizedTag = tag.trim().toLowerCase();
+
+    const inquiry = await Inquiry.findById(inquiryId);
+    if (!inquiry) {
+      return res.status(404).json({ error: "Inquiry not found." });
+    }
+
+    if (!inquiry.tags.includes(normalizedTag)) {
+      return res.status(404).json({ error: "Tag not found on this inquiry." });
+    }
+
+    inquiry.tags = inquiry.tags.filter((t) => t !== normalizedTag);
+    await inquiry.save();
+
+    res
+      .status(200)
+      .json({
+        status: "success",
+        message: "Tag removed successfully.",
+        inquiry,
+      });
+  } catch (error) {
+    console.error("Error removing tag:", error);
+    res.status(500).json({ error: "Failed to remove tag." });
+  }
+};
+
+const removeTags = async (req, res) => {
+    try {
+      const { inquiryId } = req.params;
+      const { tags } = req.body;
+  
+      if (!Array.isArray(tags) || tags.length === 0) {
+        return res.status(400).json({ error: "Tags must be a non-empty array." });
+      }
+  
+      const normalizedTags = tags.map(tag => tag.trim().toLowerCase());
+  
+      const inquiry = await Inquiry.findById(inquiryId);
+      if (!inquiry) {
+        return res.status(404).json({ error: "Inquiry not found." });
+      }
+  
+      inquiry.tags = inquiry.tags.filter(tag => !normalizedTags.includes(tag));
+      await inquiry.save();
+  
+      res.status(200).json({ status: "success", message: "Tags removed successfully.", inquiry });
+    } catch (error) {
+      console.error("Error removing tags:", error);
+      res.status(500).json({ error: "Failed to remove tags." });
+    }
+  };
+  
+
 module.exports = {
   createInquiry,
   getAllInquiries,
@@ -413,4 +476,6 @@ module.exports = {
   deleteComment,
   addTag,
   addTags,
+  removeTag,
+  removeTags,
 };
