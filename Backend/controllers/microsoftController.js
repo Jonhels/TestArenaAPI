@@ -6,6 +6,7 @@ const {
   getMicrosoftUserInfo,
 } = require("../utils/outlookUtil");
 
+const crypto = require("crypto");
 const axios = require("axios");
 const querystring = require("querystring");
 
