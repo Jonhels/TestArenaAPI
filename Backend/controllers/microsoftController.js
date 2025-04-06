@@ -41,10 +41,14 @@ const loginToMicrosoft = (req, res) => {
 const handleMicrosoftCallback = async (req, res) => {
   const { code, state } = req.query;
 
+  // Sjekk state
   if (!state || state !== req.session.oauthState) {
     return res.status(400).json({ error: "Invalid state parameter." });
   }
 
+  delete req.session.oauthState;
+
+  // Sjekk code
   if (!code) {
     return res.status(400).json({ error: "No code provided from Microsoft." });
   }
