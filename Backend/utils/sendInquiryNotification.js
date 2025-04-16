@@ -1,8 +1,12 @@
-const { SMTPClient } = require("emailjs");
 const User = require("../models/userSchema");
 
+
 const sendInquiryNotification = async (inquiry) => {
+
+
+
   try {
+    const { SMTPClient } = await import("emailjs");
     // Hent alle admin-brukere med e-postvarsling aktivert
     const admins = await User.find({ emailNotifications: true });
     const adminEmails = admins.map((admin) => admin.email).filter(Boolean);
