@@ -1,0 +1,15 @@
+[build]
+builder = "NIXPACKS"
+buildDir = "Backend"
+
+[phases.setup]
+nixPkgs = ["nodejs", "git"]
+
+[phases.install]
+cmds = ["npm install"]
+
+[phases.build]
+cmds = []
+
+[start]
+cmd = "node Backend/server.js"
