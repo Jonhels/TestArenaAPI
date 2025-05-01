@@ -55,6 +55,20 @@ const inquirySchema = new mongoose.Schema(
         },
       },
     ],
+    recommendations: [
+      {
+        name: String,
+        businessName: String,
+        contactId: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "Contacts",
+        },
+        email: String,
+        phone: String,
+        officeLocation: String,
+        responsibility: String,
+      }
+    ],
   },
   { timestamps: true }
 );
