@@ -18,6 +18,7 @@ const inquiryRoutes = require("./routes/inquiryRoute");
 const contactsRoutes = require("./routes/contactsRoute");
 const calendarRoutes = require("./routes/calendarRoutes");
 const microsoftRoutes = require("./routes/microsoftRoutes");
+const aiRoutes = require("./routes/aiRoutes");
 
 // Init app
 const app = express();
@@ -78,6 +79,7 @@ app.use("/api/inquiries", cors(corsOptions), inquiryRoutes);
 app.use("/api/contacts", cors(corsOptions), contactsRoutes);
 app.use("/api/calendar", cors(corsOptions), calendarRoutes);
 app.use("/api/microsoft", cors(corsOptions), microsoftRoutes);
+app.use("/api/ai", cors(corsOptions), aiRoutes);
 
 // Serve static files
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
