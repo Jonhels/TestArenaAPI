@@ -140,10 +140,7 @@ const loginUser = async (req, res, next) => {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "Strict",
-      expires: new Date(
-        Date.now() +
-          parseInt(process.env.JWT_COOKIE_EXPIRES_IN, 10) * 24 * 60 * 1000
-      ),
+      maxAge: parseInt(process.env.JWT_COOKIE_EXPIRES_IN, 10) * 24 * 60 * 60 * 1000,
     });
 
     const userForResponse = { ...user.toObject() };
