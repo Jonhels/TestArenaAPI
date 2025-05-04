@@ -30,7 +30,7 @@ const createInquiry = async (req, res) => {
 // Hente alle henvendelser (med filtrering)
 const getAllInquiries = async (req, res) => {
   try {
-    const { status, assignedTo, includeArchived } = req.query;
+    const { status, assignedTo, includeArchived, tag } = req.query;
 
     const filter = {};
 
