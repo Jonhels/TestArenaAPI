@@ -2,6 +2,14 @@ const Inquiry = require("../models/inquirySchema");
 const User = require("../models/userSchema");
 const sendInquiryNotification = require("../utils/sendInquiryNotification");
 
+// Helper to generate 4-digit and 3-digit parts
+const generateCaseNumber = () => {
+  const part1 = Math.floor(1000 + Math.random() * 9000); // 4-digit
+  const part2 = Math.floor(100 + Math.random() * 900);   // 3-digit
+  return `${part1}-${part2}`;
+};
+
+
 // Opprette en ny henvendelse
 const createInquiry = async (req, res) => {
   try {
@@ -13,7 +21,20 @@ const createInquiry = async (req, res) => {
         .json({ error: "Title and description are required." });
     }
 
-    const inquiry = await Inquiry.create({ title, description, status });
+    for (let i = 0; i < 10; i++) {
+      caseNumber = generateCaseNumber();
+      const existing = await Inquiry.findOne({ caseNumber });
+      if (!existing) {
+        unique = true;
+        break;
+      }
+    }
+
+    if (!unique) {
+      return res.status(500).json({ error: "Failed to generate unique case number." });
+    }
+
+    const inquiry = await Inquiry.create({ title, description, status, caseNumber });
 
     // Send e-postvarsel til admins
     sendInquiryNotification(inquiry).catch((err) => {

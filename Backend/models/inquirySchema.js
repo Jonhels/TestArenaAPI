@@ -69,6 +69,11 @@ const inquirySchema = new mongoose.Schema(
         responsibility: String,
       }
     ],
+    caseNumber: {
+      type: String,
+      unique: true,
+      required: true,
+    },
   },
   { timestamps: true }
 );
