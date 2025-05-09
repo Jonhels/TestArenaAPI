@@ -2,6 +2,14 @@ const Inquiry = require("../models/inquirySchema");
 const User = require("../models/userSchema");
 const sendInquiryNotification = require("../utils/sendInquiryNotification");
 
+// Helper to generate 4-digit and 3-digit parts
+const generateCaseNumber = () => {
+  const part1 = Math.floor(1000 + Math.random() * 9000); // 4-digit
+  const part2 = Math.floor(100 + Math.random() * 900);   // 3-digit
+  return `${part1}-${part2}`;
+};
+
+
 // Opprette en ny henvendelse
 const createInquiry = async (req, res) => {
   try {
@@ -11,6 +19,25 @@ const createInquiry = async (req, res) => {
     if (req.file) {
       data.attachmentUrl = `/uploads/inquiries/${req.file.filename}`;
     }
+
+    // Generer unikt saksnummer
+    let unique = false;
+    let caseNumber = "";
+
+    for (let i = 0; i < 10; i++) {
+      caseNumber = generateCaseNumber();
+      const existing = await Inquiry.findOne({ caseNumber });
+      if (!existing) {
+        unique = true;
+        break;
+      }
+    }
+
+    if (!unique) {
+      return res.status(500).json({ error: "Failed to generate unique case number." });
+    }
+
+    data.caseNumber = caseNumber;
 
     const inquiry = await Inquiry.create(data);
 
@@ -24,6 +51,7 @@ const createInquiry = async (req, res) => {
     res.status(500).json({ error: "Failed to create inquiry." });
   }
 };
+
 
 // Hente alle henvendelser (med filtrering)
 const getAllInquiries = async (req, res) => {
