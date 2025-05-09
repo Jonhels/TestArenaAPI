@@ -18,13 +18,14 @@ const {
   removeTags,
 } = require("../controllers/inquiryController");
 const authenticateUser = require("../utils/authenticateUser");
+const uploadInquiryAttachment = require("../utils/uploadInquiryAttachment");
 
 const router = express.Router();
 
 // Public Route (no authentication needed)
 
-// Opprett en ny henvendelse (offentlig skjema)
-router.post("/", createInquiry);
+// Opprett en ny henvendelse (offentlig skjema med vedlegg)
+router.post("/", uploadInquiryAttachment.single("attachment"), createInquiry);
 
 // Protected Routes (authentication required)
 

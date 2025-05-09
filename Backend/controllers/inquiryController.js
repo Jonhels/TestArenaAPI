@@ -5,17 +5,15 @@ const sendInquiryNotification = require("../utils/sendInquiryNotification");
 // Opprette en ny henvendelse
 const createInquiry = async (req, res) => {
   try {
-    const { title, description, status } = req.body;
+    const data = req.body;
 
-    if (!title || !description) {
-      return res
-        .status(400)
-        .json({ error: "Title and description are required." });
+    // Hvis fil er lastet opp, legg til URL
+    if (req.file) {
+      data.attachmentUrl = `/uploads/inquiries/${req.file.filename}`;
     }
 
-    const inquiry = await Inquiry.create({ title, description, status });
+    const inquiry = await Inquiry.create(data);
 
-    // Send e-postvarsel til admins
     sendInquiryNotification(inquiry).catch((err) => {
       console.error("Failed to send inquiry notification email:", err);
     });
@@ -77,13 +75,11 @@ const getInquiryById = async (req, res) => {
 const updateInquiry = async (req, res) => {
   try {
     const { inquiryId } = req.params;
-    const { title, description, status } = req.body;
 
-    const inquiry = await Inquiry.findByIdAndUpdate(
-      inquiryId,
-      { title, description, status },
-      { new: true, runValidators: true }
-    );
+    const inquiry = await Inquiry.findByIdAndUpdate(inquiryId, req.body, {
+      new: true,
+      runValidators: true,
+    });
 
     if (!inquiry) {
       return res.status(404).json({ error: "Inquiry not found." });
@@ -107,9 +103,10 @@ const deleteInquiry = async (req, res) => {
       return res.status(404).json({ error: "Inquiry not found." });
     }
 
-    res
-      .status(200)
-      .json({ status: "success", message: "Inquiry deleted successfully." });
+    res.status(200).json({
+      status: "success",
+      message: "Inquiry deleted successfully.",
+    });
   } catch (error) {
     console.error("Error deleting inquiry:", error);
     res.status(500).json({ error: "Failed to delete inquiry." });
@@ -209,7 +206,6 @@ const updateStatus = async (req, res) => {
     const { inquiryId } = req.params;
     const { newStatus } = req.body;
 
-    // Tillatte statuser
     const allowedStatuses = ["ulest", "i arbeid", "ferdig"];
 
     if (!allowedStatuses.includes(newStatus)) {
@@ -235,7 +231,7 @@ const updateStatus = async (req, res) => {
   }
 };
 
-// Legge til en kommentar
+// Kommentar-funksjoner
 const addComment = async (req, res) => {
   try {
     const { inquiryId } = req.params;
@@ -268,7 +264,6 @@ const addComment = async (req, res) => {
   }
 };
 
-// Redigere en kommentar
 const editComment = async (req, res) => {
   try {
     const { inquiryId, commentId } = req.params;
@@ -310,7 +305,6 @@ const editComment = async (req, res) => {
   }
 };
 
-// Slette en kommentar
 const deleteComment = async (req, res) => {
   try {
     const { inquiryId, commentId } = req.params;
@@ -345,7 +339,7 @@ const deleteComment = async (req, res) => {
   }
 };
 
-// Legge til en tag
+// Tags
 const addTag = async (req, res) => {
   try {
     const { inquiryId } = req.params;
