@@ -1,416 +1,286 @@
+const { v4: uuidv4 } = require("uuid");
 const Inquiry = require("../models/inquirySchema");
 const User = require("../models/userSchema");
 const sendInquiryNotification = require("../utils/sendInquiryNotification");
+const CreateError = require("../utils/createError");
+const { successResponse } = require("../utils/responseHelper");
+const findInquiry = require("../utils/findInquiry");
 
-// Helper to generate 4-digit and 3-digit parts
-const generateCaseNumber = () => {
-  const part1 = Math.floor(1000 + Math.random() * 9000); // 4-digit
-  const part2 = Math.floor(100 + Math.random() * 900);   // 3-digit
-  return `${part1}-${part2}`;
+// Generer robust saksnummer med UUID
+const generateCaseNumber = () => uuidv4();
+
+// Enkel retry-mekanisme for sending av varsler (med maks 3 forsøk)
+const sendNotificationWithRetry = async (inquiry, retries = 3) => {
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      await sendInquiryNotification(inquiry);
+      return;
+    } catch (error) {
+      console.error(`Notification attempt ${attempt} failed:`, error);
+      if (attempt === retries) {
+        console.error("All notification attempts failed");
+      }
+    }
+  }
 };
 
-
-// Opprette en ny henvendelse
-const createInquiry = async (req, res) => {
+// Opprett henvendelse
+const createInquiry = async (req, res, next) => {
   try {
     const data = req.body;
-
-    // Hvis fil er lastet opp, legg til URL
     if (req.file) {
       data.attachmentUrl = `/uploads/inquiries/${req.file.filename}`;
     }
 
-    // Generer unikt saksnummer
-    let unique = false;
-    let caseNumber = "";
-
-    for (let i = 0; i < 10; i++) {
-      caseNumber = generateCaseNumber();
-      const existing = await Inquiry.findOne({ caseNumber });
-      if (!existing) {
-        unique = true;
-        break;
-      }
-    }
-
-    if (!unique) {
-      return res.status(500).json({ error: "Failed to generate unique case number." });
-    }
-
-    data.caseNumber = caseNumber;
+    data.caseNumber = generateCaseNumber();
 
     const inquiry = await Inquiry.create(data);
+    sendNotificationWithRetry(inquiry);
 
-    sendInquiryNotification(inquiry).catch((err) => {
-      console.error("Failed to send inquiry notification email:", err);
-    });
-
-    res.status(201).json({ status: "success", inquiry });
-  } catch (error) {
-    console.error("Error creating inquiry:", error);
-    res.status(500).json({ error: "Failed to create inquiry." });
+    return successResponse(res, inquiry, "Inquiry created", 201);
+  } catch (err) {
+    next(err);
   }
 };
 
-
-// Hente alle henvendelser (med filtrering)
-const getAllInquiries = async (req, res) => {
+// Hent alle henvendelser (paginering og søk)
+const getAllInquiries = async (req, res, next) => {
   try {
-    const { status, assignedTo, includeArchived, tag } = req.query;
+    const {
+      status,
+      assignedTo,
+      includeArchived,
+      tag,
+      search,
+      page = 1,
+      limit = 20,
+    } = req.query;
 
     const filter = {};
-
-    if (includeArchived !== "true") {
-      filter.archived = false;
-    }
-    if (status) {
-      filter.status = status;
-    }
-    if (assignedTo) {
-      filter.assignedTo = assignedTo;
-    }
-    if (tag) {
-      filter.tags = { $in: [tag.toLowerCase()] };
-    }
-
-    const inquiries = await Inquiry.find(filter).sort({ createdAt: -1 });
-
-    res.status(200).json({ status: "success", inquiries });
-  } catch (error) {
-    console.error("Error fetching inquiries:", error);
-    res.status(500).json({ error: "Failed to fetch inquiries." });
-  }
-};
-
-// Hente én henvendelse basert på ID
-const getInquiryById = async (req, res) => {
-  try {
-    const { inquiryId } = req.params;
-    const inquiry = await Inquiry.findById(inquiryId);
-
-    if (!inquiry) {
-      return res.status(404).json({ error: "Inquiry not found." });
+    if (includeArchived !== "true") filter.archived = false;
+    if (status) filter.status = status;
+    if (assignedTo) filter.assignedTo = assignedTo;
+    if (tag) filter.tags = { $in: [tag.toLowerCase()] };
+    if (search) {
+      const regex = new RegExp(search, "i");
+      filter.$or = [
+        { companyName: regex },
+        { contactName: regex },
+        { caseNumber: regex },
+      ];
     }
 
-    res.status(200).json({ status: "success", inquiry });
-  } catch (error) {
-    console.error("Error fetching inquiry:", error);
-    res.status(500).json({ error: "Failed to fetch inquiry." });
-  }
-};
+    const skip = (Number(page) - 1) * Number(limit);
 
-// Oppdatere en henvendelse
-const updateInquiry = async (req, res) => {
-  try {
-    const { inquiryId } = req.params;
+    const [inquiries, total] = await Promise.all([
+      Inquiry.find(filter)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(Number(limit)),
+      Inquiry.countDocuments(filter),
+    ]);
 
-    const inquiry = await Inquiry.findByIdAndUpdate(inquiryId, req.body, {
-      new: true,
-      runValidators: true,
+    return successResponse(res, {
+      inquiries,
+      total,
+      page: Number(page),
+      limit: Number(limit),
+      totalPages: Math.ceil(total / limit),
     });
-
-    if (!inquiry) {
-      return res.status(404).json({ error: "Inquiry not found." });
-    }
-
-    res.status(200).json({ status: "success", inquiry });
-  } catch (error) {
-    console.error("Error updating inquiry:", error);
-    res.status(500).json({ error: "Failed to update inquiry." });
+  } catch (err) {
+    next(err);
   }
 };
 
-// Slette en henvendelse
-const deleteInquiry = async (req, res) => {
+// Hent én henvendelse med ID
+const getInquiryById = async (req, res, next) => {
   try {
-    const { inquiryId } = req.params;
-
-    const inquiry = await Inquiry.findByIdAndDelete(inquiryId);
-
-    if (!inquiry) {
-      return res.status(404).json({ error: "Inquiry not found." });
-    }
-
-    res.status(200).json({
-      status: "success",
-      message: "Inquiry deleted successfully.",
-    });
-  } catch (error) {
-    console.error("Error deleting inquiry:", error);
-    res.status(500).json({ error: "Failed to delete inquiry." });
+    const inquiry = await findInquiry(req.params.inquiryId);
+    return successResponse(res, inquiry);
+  } catch (err) {
+    next(err);
   }
 };
 
-// Arkivere en henvendelse
-const archiveInquiry = async (req, res) => {
+// Oppdater henvendelse
+const updateInquiry = async (req, res, next) => {
   try {
-    const { inquiryId } = req.params;
-
     const inquiry = await Inquiry.findByIdAndUpdate(
-      inquiryId,
+      req.params.inquiryId,
+      req.body,
+      { new: true, runValidators: true }
+    );
+    if (!inquiry) throw new CreateError("Inquiry not found", 404);
+    return successResponse(res, inquiry, "Inquiry updated");
+  } catch (err) {
+    next(err);
+  }
+};
+
+// Slett henvendelse
+const deleteInquiry = async (req, res, next) => {
+  try {
+    const inquiry = await Inquiry.findByIdAndDelete(req.params.inquiryId);
+    if (!inquiry) throw new CreateError("Inquiry not found", 404);
+    return successResponse(res, null, "Inquiry deleted");
+  } catch (err) {
+    next(err);
+  }
+};
+
+// Arkiver henvendelse
+const archiveInquiry = async (req, res, next) => {
+  try {
+    const inquiry = await Inquiry.findByIdAndUpdate(
+      req.params.inquiryId,
       { archived: true },
       { new: true, runValidators: true }
     );
-
-    if (!inquiry) {
-      return res.status(404).json({ error: "Inquiry not found." });
-    }
-
-    res.status(200).json({
-      status: "success",
-      message: "Inquiry archived successfully.",
-      inquiry,
-    });
-  } catch (error) {
-    console.error("Error archiving inquiry:", error);
-    res.status(500).json({ error: "Failed to archive inquiry." });
+    if (!inquiry) throw new CreateError("Inquiry not found", 404);
+    return successResponse(res, inquiry, "Inquiry archived");
+  } catch (err) {
+    next(err);
   }
 };
 
-// Gjenopprette en arkivert henvendelse
-const restoreInquiry = async (req, res) => {
+// Gjenopprett arkivert henvendelse
+const restoreInquiry = async (req, res, next) => {
   try {
-    const { inquiryId } = req.params;
-
-    const inquiry = await Inquiry.findById(inquiryId);
-
-    if (!inquiry) {
-      return res.status(404).json({ error: "Inquiry not found." });
-    }
-    if (!inquiry.archived) {
-      return res.status(400).json({ error: "Inquiry is not archived." });
-    }
-
+    const inquiry = await findInquiry(req.params.inquiryId);
+    if (!inquiry.archived)
+      throw new CreateError("Inquiry is not archived", 400);
     inquiry.archived = false;
     await inquiry.save();
-
-    res.status(200).json({
-      status: "success",
-      message: "Inquiry restored successfully.",
-      inquiry,
-    });
-  } catch (error) {
-    console.error("Error restoring inquiry:", error);
-    res.status(500).json({ error: "Failed to restore inquiry." });
+    return successResponse(res, inquiry, "Inquiry restored");
+  } catch (err) {
+    next(err);
   }
 };
 
-// Tilordne en admin til en henvendelse
-const assignAdminToInquiry = async (req, res) => {
+// Tildel administrator til henvendelse
+const assignAdminToInquiry = async (req, res, next) => {
   try {
     const { inquiryId } = req.params;
     const { adminId } = req.body;
 
-    const inquiry = await Inquiry.findById(inquiryId);
-    if (!inquiry) {
-      return res.status(404).json({ error: "Inquiry not found." });
-    }
-
+    const inquiry = await findInquiry(inquiryId);
     const admin = await User.findById(adminId);
-    if (!admin) {
-      return res.status(404).json({ error: "Admin user not found." });
-    }
+    if (!admin) throw new CreateError("Admin user not found", 404);
 
     inquiry.assignedTo = admin._id;
     inquiry.assignedBy = req.user._id;
     inquiry.assignedAt = new Date();
 
     await inquiry.save();
-
-    res.status(200).json({
-      status: "success",
-      message: "Admin assigned successfully.",
-      inquiry,
-    });
-  } catch (error) {
-    console.error("Error assigning admin:", error);
-    res.status(500).json({ error: "Failed to assign admin." });
+    return successResponse(res, inquiry, "Admin assigned");
+  } catch (err) {
+    next(err);
   }
 };
 
-// Oppdatere status på en henvendelse
-const updateStatus = async (req, res) => {
+// Oppdater status på henvendelse
+const updateStatus = async (req, res, next) => {
   try {
     const { inquiryId } = req.params;
     const { newStatus } = req.body;
-
     const allowedStatuses = ["ulest", "i arbeid", "ferdig"];
 
     if (!allowedStatuses.includes(newStatus)) {
-      return res.status(400).json({ error: "Invalid status value." });
+      throw new CreateError("Invalid status value", 400);
     }
 
-    const inquiry = await Inquiry.findById(inquiryId);
-    if (!inquiry) {
-      return res.status(404).json({ error: "Inquiry not found." });
-    }
-
+    const inquiry = await findInquiry(inquiryId);
     inquiry.status = newStatus;
     await inquiry.save();
-
-    res.status(200).json({
-      status: "success",
-      message: "Inquiry status updated successfully.",
-      inquiry,
-    });
-  } catch (error) {
-    console.error("Error updating status:", error);
-    res.status(500).json({ error: "Failed to update status." });
+    return successResponse(res, inquiry, "Inquiry status updated");
+  } catch (err) {
+    next(err);
   }
 };
 
-// Kommentar-funksjoner
-const addComment = async (req, res) => {
+// Legg til kommentar
+const addComment = async (req, res, next) => {
   try {
-    const { inquiryId } = req.params;
     const { text } = req.body;
+    if (!text) throw new CreateError("Comment text is required", 400);
 
-    if (!text) {
-      return res.status(400).json({ error: "Comment text is required." });
-    }
-
-    const inquiry = await Inquiry.findById(inquiryId);
-    if (!inquiry) {
-      return res.status(404).json({ error: "Inquiry not found." });
-    }
-
-    inquiry.comments.push({
-      text,
-      admin: req.user._id,
-    });
-
+    const inquiry = await findInquiry(req.params.inquiryId);
+    inquiry.comments.push({ text, admin: req.user._id });
     await inquiry.save();
 
-    res.status(200).json({
-      status: "success",
-      message: "Comment added successfully.",
-      inquiry,
-    });
-  } catch (error) {
-    console.error("Error adding comment:", error);
-    res.status(500).json({ error: "Failed to add comment." });
+    return successResponse(res, inquiry, "Comment added");
+  } catch (err) {
+    next(err);
   }
 };
 
-const editComment = async (req, res) => {
+const editComment = async (req, res, next) => {
   try {
     const { inquiryId, commentId } = req.params;
     const { text } = req.body;
+    if (!text) throw new CreateError("Updated comment text is required", 400);
 
-    if (!text) {
-      return res
-        .status(400)
-        .json({ error: "Updated comment text is required." });
-    }
-
-    const inquiry = await Inquiry.findById(inquiryId);
-    if (!inquiry) {
-      return res.status(404).json({ error: "Inquiry not found." });
-    }
-
+    const inquiry = await findInquiry(inquiryId);
     const comment = inquiry.comments.id(commentId);
-    if (!comment) {
-      return res.status(404).json({ error: "Comment not found." });
-    }
-
+    if (!comment) throw new CreateError("Comment not found", 404);
     if (!comment.admin.equals(req.user._id)) {
-      return res
-        .status(403)
-        .json({ error: "Not authorized to edit this comment." });
+      throw new CreateError("Not authorized to edit this comment", 403);
     }
 
     comment.text = text;
     await inquiry.save();
-
-    res.status(200).json({
-      status: "success",
-      message: "Comment updated successfully.",
-      inquiry,
-    });
-  } catch (error) {
-    console.error("Error editing comment:", error);
-    res.status(500).json({ error: "Failed to edit comment." });
+    return successResponse(res, inquiry, "Comment updated");
+  } catch (err) {
+    next(err);
   }
 };
 
-const deleteComment = async (req, res) => {
+const deleteComment = async (req, res, next) => {
   try {
-    const { inquiryId, commentId } = req.params;
-
-    const inquiry = await Inquiry.findById(inquiryId);
-    if (!inquiry) {
-      return res.status(404).json({ error: "Inquiry not found." });
-    }
-
-    const comment = inquiry.comments.id(commentId);
-    if (!comment) {
-      return res.status(404).json({ error: "Comment not found." });
-    }
-
+    const inquiry = await findInquiry(req.params.inquiryId);
+    const comment = inquiry.comments.id(req.params.commentId);
+    if (!comment) throw new CreateError("Comment not found", 404);
     if (!comment.admin.equals(req.user._id)) {
-      return res
-        .status(403)
-        .json({ error: "Not authorized to delete this comment." });
+      throw new CreateError("Not authorized to delete this comment", 403);
     }
 
     comment.remove();
     await inquiry.save();
-
-    res.status(200).json({
-      status: "success",
-      message: "Comment deleted successfully.",
-      inquiry,
-    });
-  } catch (error) {
-    console.error("Error deleting comment:", error);
-    res.status(500).json({ error: "Failed to delete comment." });
+    return successResponse(res, inquiry, "Comment deleted");
+  } catch (err) {
+    next(err);
   }
 };
 
-// Tags
-const addTag = async (req, res) => {
+const addTag = async (req, res, next) => {
   try {
-    const { inquiryId } = req.params;
     const { tag } = req.body;
-
     if (!tag || typeof tag !== "string") {
-      return res.status(400).json({ error: "Tag must be a non-empty string." });
+      throw new CreateError("Tag must be a non-empty string", 400);
     }
-
     const normalizedTag = tag.trim().toLowerCase();
 
-    const inquiry = await Inquiry.findById(inquiryId);
-    if (!inquiry) {
-      return res.status(404).json({ error: "Inquiry not found." });
-    }
-
+    const inquiry = await findInquiry(req.params.inquiryId);
     if (!inquiry.tags.includes(normalizedTag)) {
       inquiry.tags.push(normalizedTag);
       await inquiry.save();
     }
 
-    res.status(200).json({ status: "success", inquiry });
-  } catch (error) {
-    console.error("Error adding tag:", error);
-    res.status(500).json({ error: "Failed to add tag." });
+    return successResponse(res, inquiry, "Tag added");
+  } catch (err) {
+    next(err);
   }
 };
 
-const addTags = async (req, res) => {
+const addTags = async (req, res, next) => {
   try {
-    const { inquiryId } = req.params;
     const { tags } = req.body;
-
     if (!Array.isArray(tags) || tags.length === 0) {
-      return res.status(400).json({ error: "Tags must be a non-empty array." });
+      throw new CreateError("Tags must be a non-empty array", 400);
     }
 
     const normalizedTags = tags.map((tag) => tag.trim().toLowerCase());
-
-    const inquiry = await Inquiry.findById(inquiryId);
-    if (!inquiry) {
-      return res.status(404).json({ error: "Inquiry not found." });
-    }
+    const inquiry = await findInquiry(req.params.inquiryId);
 
     normalizedTags.forEach((tag) => {
       if (tag && !inquiry.tags.includes(tag)) {
@@ -419,75 +289,51 @@ const addTags = async (req, res) => {
     });
 
     await inquiry.save();
-
-    res.status(200).json({ status: "success", inquiry });
-  } catch (error) {
-    console.error("Error adding tags:", error);
-    res.status(500).json({ error: "Failed to add tags." });
+    return successResponse(res, inquiry, "Tags added");
+  } catch (err) {
+    next(err);
   }
 };
 
-const removeTag = async (req, res) => {
+const removeTag = async (req, res, next) => {
   try {
-    const { inquiryId } = req.params;
     const { tag } = req.body;
-
     if (!tag || typeof tag !== "string") {
-      return res.status(400).json({ error: "Tag must be a non-empty string." });
+      throw new CreateError("Tag must be a non-empty string", 400);
     }
 
     const normalizedTag = tag.trim().toLowerCase();
-
-    const inquiry = await Inquiry.findById(inquiryId);
-    if (!inquiry) {
-      return res.status(404).json({ error: "Inquiry not found." });
-    }
+    const inquiry = await findInquiry(req.params.inquiryId);
 
     if (!inquiry.tags.includes(normalizedTag)) {
-      return res.status(404).json({ error: "Tag not found on this inquiry." });
+      throw new CreateError("Tag not found on this inquiry", 404);
     }
 
     inquiry.tags = inquiry.tags.filter((t) => t !== normalizedTag);
     await inquiry.save();
 
-    res.status(200).json({
-      status: "success",
-      message: "Tag removed successfully.",
-      inquiry,
-    });
-  } catch (error) {
-    console.error("Error removing tag:", error);
-    res.status(500).json({ error: "Failed to remove tag." });
+    return successResponse(res, inquiry, "Tag removed");
+  } catch (err) {
+    next(err);
   }
 };
 
-const removeTags = async (req, res) => {
+const removeTags = async (req, res, next) => {
   try {
-    const { inquiryId } = req.params;
     const { tags } = req.body;
-
     if (!Array.isArray(tags) || tags.length === 0) {
-      return res.status(400).json({ error: "Tags must be a non-empty array." });
+      throw new CreateError("Tags must be a non-empty array", 400);
     }
 
     const normalizedTags = tags.map((tag) => tag.trim().toLowerCase());
-
-    const inquiry = await Inquiry.findById(inquiryId);
-    if (!inquiry) {
-      return res.status(404).json({ error: "Inquiry not found." });
-    }
+    const inquiry = await findInquiry(req.params.inquiryId);
 
     inquiry.tags = inquiry.tags.filter((tag) => !normalizedTags.includes(tag));
     await inquiry.save();
 
-    res.status(200).json({
-      status: "success",
-      message: "Tags removed successfully.",
-      inquiry,
-    });
-  } catch (error) {
-    console.error("Error removing tags:", error);
-    res.status(500).json({ error: "Failed to remove tags." });
+    return successResponse(res, inquiry, "Tags removed");
+  } catch (err) {
+    next(err);
   }
 };
 

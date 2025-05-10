@@ -1,27 +1,28 @@
-const express = require('express');
+const express = require("express");
 const {
-    createContact,
-    updateContact,
-    deleteContact,
-    searchContacts,
-    getAllContacts
-} = require('../controllers/contactsController'); 
-const authenticateUser = require('../utils/authenticateUser');
+  createContact,
+  updateContact,
+  deleteContact,
+  searchContacts,
+  getAllContacts,
+} = require("../controllers/contactsController");
+
+const authenticateUser = require("../utils/authenticateUser");
 const router = express.Router();
 
-// Route to create a new contact, protected route with authenticateUser
-router.post('/', authenticateUser, createContact);
+// Søk først for å unngå konflikt med /:contactId
+router.get("/search", authenticateUser, searchContacts);
 
-// Route to update an existing contact, protected route with authenticateUser
-router.put('/:contactId', authenticateUser, updateContact);
+// Hent alle kontakter
+router.get("/", authenticateUser, getAllContacts);
 
-// Route to delete a contact, protected route with authenticateUser
-router.delete('/:contactId', authenticateUser, deleteContact);
+// Opprett kontakt
+router.post("/", authenticateUser, createContact);
 
-// Route to search contacts, protected route with authenticateUser
-router.get('/search', authenticateUser, searchContacts);
+// Oppdater kontakt
+router.put("/:contactId", authenticateUser, updateContact);
 
-// Route to get all contacts, protected route with authenticateUser
-router.get('/', authenticateUser, getAllContacts);
+// Slett kontakt
+router.delete("/:contactId", authenticateUser, deleteContact);
 
-module.exports = router; // Export the router to be used in the main app
+module.exports = router;

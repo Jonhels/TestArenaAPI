@@ -1,37 +1,33 @@
 const Inquiry = require("../models/inquirySchema");
 const Contacts = require("../models/contactsSchema");
 const { OpenAI } = require("openai");
+const CreateError = require("../utils/createError");
+const { successResponse, errorResponse } = require("../utils/responseHelper");
 
-// Initialize OpenAI
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-const recommendContactsForInquiry = async (req, res) => {
+const recommendContactsForInquiry = async (req, res, next) => {
   try {
     const { inquiryId } = req.params;
-
-    // Get the inquiry
     const inquiry = await Inquiry.findById(inquiryId);
     if (!inquiry) {
-      return res.status(404).json({ error: "Inquiry not found." });
+      return next(new CreateError("Inquiry not found.", 404));
     }
 
-    // ✅ If recommendations already exist, return them (cached)
-    if (inquiry.recommendations && inquiry.recommendations.length > 0) {
-      return res.status(200).json({
-        status: "cached",
+    if (inquiry.recommendations?.length > 0) {
+      return successResponse(res, {
         recommendedContacts: inquiry.recommendations,
+        source: "cache",
       });
     }
 
-    // Get all contacts from the DB
     const contacts = await Contacts.find();
     if (contacts.length === 0) {
-      return res.status(404).json({ error: "No contacts found." });
+      return next(new CreateError("No contacts found.", 404));
     }
 
-    // Format contacts for prompt
     const contactList = contacts
       .map((c, idx) => {
         return `Contact ${idx + 1}:
@@ -42,7 +38,6 @@ Location: ${c.officeLocation}`;
       })
       .join("\n\n");
 
-    // Construct prompt
     const prompt = `
 You are an expert business consultant AI. A new inquiry has been submitted:
 
@@ -60,32 +55,30 @@ Return ONLY JSON like this:
 ]
 `;
 
-    // Call OpenAI API
     const completion = await openai.chat.completions.create({
       model: "gpt-4",
       messages: [{ role: "user", content: prompt }],
       temperature: 0.3,
     });
 
-    const responseText = completion.choices[0].message.content;
-
     let aiSuggestions;
     try {
-      aiSuggestions = JSON.parse(responseText);
+      aiSuggestions = JSON.parse(completion.choices[0].message.content);
     } catch (err) {
-      console.error("Failed to parse AI response:", responseText);
-      return res
-        .status(500)
-        .json({ error: "AI returned invalid JSON. Try again later." });
+      console.error(
+        "AI returned invalid JSON:",
+        completion.choices[0].message.content
+      );
+      return next(new CreateError("AI returned invalid JSON format.", 500));
     }
 
-    // Match suggestions to MongoDB contact objects
     const recommendedContacts = contacts
       .filter((contact) =>
         aiSuggestions.some(
           (rec) =>
             rec.name?.toLowerCase() === contact.name.toLowerCase() &&
-            rec.businessName?.toLowerCase() === contact.businessName.toLowerCase()
+            rec.businessName?.toLowerCase() ===
+              contact.businessName.toLowerCase()
         )
       )
       .map((contact) => ({
@@ -98,17 +91,13 @@ Return ONLY JSON like this:
         responsibility: contact.responsibility,
       }));
 
-    // Save to inquiry
     inquiry.recommendations = recommendedContacts;
     await inquiry.save();
 
-    res.status(200).json({
-      status: "generated",
-      recommendedContacts,
-    });
+    return successResponse(res, { recommendedContacts, source: "ai" });
   } catch (error) {
     console.error("AI Recommendation error:", error);
-    res.status(500).json({ error: "AI Recommendation failed." });
+    return errorResponse(res, "AI Recommendation failed.", 500);
   }
 };
 

@@ -1,162 +1,118 @@
-const jwt = require("jsonwebtoken");
 const User = require("../models/userSchema");
-const createError = require("../utils/createError");
+const CreateError = require("../utils/createError");
 const { hashPassword, comparePassword } = require("../utils/hashPassword");
-const validator = require("validator");
+const { validateStrongPassword } = require("../utils/validators");
+const { generateToken, verifyToken } = require("../utils/tokenUtils");
+const { successResponse, errorResponse } = require("../utils/responseHelper");
 const path = require("path");
-const fs = require("fs");
+const fs = require("fs").promises;
+const validator = require("validator");
+const { SMTPClient } = require("emailjs");
 
-let SMTPClient;
-(async () => {
-  const emailjs = await import("emailjs");
-  SMTPClient = emailjs.SMTPClient;
-})();
+// Initialisering av SMTP-klient ved oppstart
+const smtpClient = new SMTPClient({
+  user: process.env.EMAILJS_USER,
+  password: process.env.EMAILJS_PASSWORD,
+  host: process.env.EMAILJS_HOST,
+  ssl: true,
+  port: process.env.EMAILJS_PORT || 465,
+});
 
-const validateStrongPassword = (password) => {
-  return validator.isStrongPassword(password, {
-    minLength: 6,
-    minLowercase: 1,
-    minUppercase: 1,
-    minNumbers: 1,
-    minSymbols: 1,
+// Hjelpefunksjon for sending av e-post
+const sendEmail = async ({ to, subject, html, text }) => {
+  await smtpClient.sendAsync({
+    from: process.env.EMAILJS_FROM,
+    to,
+    subject,
+    text,
+    attachment: [{ data: html, alternative: true }],
   });
 };
 
-// // Oppretter SMTP-klient inne i try/catch for å unngå krasj ved feil initiering
+// Send verifiserings-e-post
 const sendVerificationEmail = async (user) => {
-  if (!SMTPClient) {
-    throw new Error("SMTP Client not initialized yet");
-  }
+  const token = generateToken({ id: user._id, email: user.email }, "1d");
+  const link = `${process.env.FRONTEND_URL}/verify-email?token=${token}`;
 
-  const verificationToken = jwt.sign(
-    { id: user._id, email: user.email },
-    process.env.JWT_SECRET,
-    { expiresIn: "1d" } // Token valid for 1 day
-  );
-
-  const verificationLink = `${process.env.FRONTEND_URL}/verify-email?token=${verificationToken}`;
-
-  try {
-    const client = new SMTPClient({
-      user: process.env.EMAILJS_USER,
-      password: process.env.EMAILJS_PASSWORD,
-      host: process.env.EMAILJS_HOST,
-      ssl: true, // Use SSL (Port 465)
-      port: process.env.EMAILJS_PORT || 465,
-    });
-
-    await client.sendAsync({
-      text: `Click the following link to verify your email: ${verificationLink}`,
-      from: process.env.EMAILJS_FROM,
-      to: user.email,
-      subject: "Verify Your Email",
-      attachment: [
-        {
-          data: `<p>Click <a href="${verificationLink}">here</a> to verify your email.</p>`,
-          alternative: true,
-        },
-      ],
-    });
-
-    console.log("Verification email sent successfully");
-  } catch (error) {
-    console.error("Error sending verification email:", error.message);
-    throw new Error("Failed to send verification email");
-  }
+  await sendEmail({
+    to: user.email,
+    subject: "Verify Your Email",
+    text: `Click to verify: ${link}`,
+    html: `<p>Click <a href="${link}">here</a> to verify your email.</p>`,
+  });
 };
 
-// Registrere ny bruker (med e-postbekreftelse)
+// Registrer bruker
 const registerUser = async (req, res, next) => {
   try {
     const { name, email, password } = req.body;
 
-    if (!name) {
-      return res.status(400).json({ error: "Name is required" });
-    }
+    if (!name || name.length > 50)
+      return next(
+        new CreateError("Name is required and must be under 50 characters", 400)
+      );
 
-    if (name.length > 50) {
-      return res
-        .status(400)
-        .json({ error: "Name cannot exceed 50 characters" });
-    }
+    if (!validateStrongPassword(password))
+      return next(new CreateError("Password is too weak", 400));
 
-    if (!validateStrongPassword(password)) {
-      return res.status(400).json({
-        error:
-          "Password must be stronger. At least 6 characters, including a number, a symbol, and mixed case letters",
-      });
-    }
+    if (await User.findOne({ email }))
+      return next(new CreateError("Email already exists", 400));
 
-    const exist = await User.findOne({ email });
-    if (exist) {
-      return next(new createError("Email already exists", 400));
-    }
-
-    const hashedPassword = await hashPassword(password);
+    const hashed = await hashPassword(password);
     const newUser = await User.create({
       name,
       email,
-      password: hashedPassword,
+      password: hashed,
       isVerified: false,
     });
 
-    await sendVerificationEmail(newUser);
+    // Håndtere feil ved e-post
+    try {
+      await sendVerificationEmail(newUser);
+    } catch (emailError) {
+      console.error("Failed to send verification email:", emailError);
+    }
 
-    const userForResponse = { ...newUser._doc };
-    delete userForResponse.password;
-
-    res.status(201).json({
-      status: "success",
-      messsage:
-        "User registred successfully. Please check your email to verify your account.",
-      user: userForResponse,
-    });
-  } catch (error) {
-    next(error);
+    const { password: _, ...safeUser } = newUser.toObject();
+    return successResponse(
+      res,
+      { user: safeUser },
+      "User registered. Please verify email.",
+      201
+    );
+  } catch (err) {
+    next(err);
   }
 };
 
-// 	Logge inn bruker (JWT, cookie)
+// Logg inn bruker
 const loginUser = async (req, res, next) => {
   try {
     const { email, password } = req.body;
-
-    if (!email || !validator.isEmail(email) || !password) {
-      return next(new createError("Invalid email or password", 400));
-    }
+    if (!email || !validator.isEmail(email) || !password)
+      return next(new CreateError("Invalid email or password", 400));
 
     const user = await User.findOne({ email }).select("+password");
-    if (!user || !(await comparePassword(password, user.password))) {
-      return next(new createError("Invalid email or password", 401));
-    }
+    if (!user || !(await comparePassword(password, user.password)))
+      return next(new CreateError("Invalid email or password", 401));
 
-    const token = jwt.sign(
-      { id: user._id }, // Add role here later when implementing administrator access
-      process.env.JWT_SECRET,
-      { expiresIn: process.env.JWT_EXPIRES_IN }
-    );
-
+    const token = generateToken({ id: user._id }, process.env.JWT_EXPIRES_IN);
     res.cookie("token", token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "Strict",
-      maxAge: parseInt(process.env.JWT_COOKIE_EXPIRES_IN, 10) * 24 * 60 * 60 * 1000,
+      maxAge:
+        (parseInt(process.env.JWT_COOKIE_EXPIRES_IN, 10) || 14) * 86400000, // 14 dager fallback
     });
 
-    const userForResponse = { ...user.toObject() };
-    delete userForResponse.password;
-
-    res.status(200).json({
-      status: "success",
-      message: "User logged in successfully",
-      user: userForResponse,
-    });
-  } catch (error) {
-    next(error);
+    const { password: _, ...safeUser } = user.toObject();
+    return successResponse(res, { user: safeUser }, "User logged in");
+  } catch (err) {
+    next(err);
   }
 };
 
-// 	Logge ut bruker (nullstille cookie)
+// Logg ut bruker
 const logoutUser = (req, res) => {
   res.cookie("token", "", {
     httpOnly: true,
@@ -164,107 +120,20 @@ const logoutUser = (req, res) => {
     secure: process.env.NODE_ENV === "production",
     sameSite: "Strict",
   });
-  res.status(200).json({ message: "Logged out successfully" });
+  return successResponse(res, {}, "Logged out successfully");
 };
 
-// Oppdatere navn eller passord for innlogget bruker
-const updateUser = async (req, res, next) => {
-  const userId = req.user._id;
-  const { name, password } = req.body;
-
-  const updateData = {};
-
-  try {
-    if (name && name.trim()) {
-      if (name.length > 50) {
-        return res
-          .status(400)
-          .json({ error: "Name cannot exceed 50 characters" });
-      }
-      updateData.name = name.trim();
-    }
-
-    if (password && password.trim()) {
-      if (!validateStrongPassword(password)) {
-        return res.status(400).json({
-          error:
-            "Password must be stronger. At least 6 characters, including a number, a symbol, and mixed case letters",
-        });
-      }
-      const hashedPassword = await hashPassword(password);
-      updateData.password = hashedPassword;
-    }
-
-    if (Object.keys(updateData).length === 0) {
-      return res.status(400).json({ error: "No fields to update" });
-    }
-
-    const updatedUser = await User.findByIdAndUpdate(userId, updateData, {
-      new: true,
-      select: "-password",
-    });
-
-    res.status(200).json({
-      status: "success",
-      message: "User updated successfully",
-      user: updatedUser,
-    });
-  } catch (error) {
-    console.error("Error updating user:", error);
-    next(error);
-  }
-};
-
-// 	Slette egen bruker og cookie
-const deleteUser = async (req, res, next) => {
-  const userId = req.user._id;
-
-  try {
-    const deletedUser = await User.findByIdAndDelete(userId);
-
-    if (!deletedUser) {
-      return res.status(404).json({ error: "User not found" });
-    }
-
-    res.cookie("token", "", {
-      httpOnly: true,
-      expires: new Date(0),
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "Strict",
-    });
-
-    res.status(200).json({
-      status: "success",
-      message: "User account and data deleted successfully",
-    });
-  } catch (error) {
-    console.error("Error deleting user:", error);
-    next(error);
-  }
-};
-
-// 	Verifisere brukerens e-postadresse via token
+// Verifiser e-post
 const verifyEmail = async (req, res) => {
-  const { token } = req.query;
-
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const { token } = req.query;
+    const decoded = verifyToken(token);
 
     const user = await User.findById(decoded.id);
+    if (!user) throw new CreateError("Invalid token or user not found", 400);
+    if (user.isVerified) throw new CreateError("Email already verified", 400);
 
-    if (!user) {
-      return res
-        .status(400)
-        .json({ error: "Invalid token or user does not exist." });
-    }
-
-    if (user.isVerified) {
-      return res
-        .status(400)
-        .json({ error: "Email already verified. Please log in." });
-    }
-
-    user.isVerified = true; // Mark user as verified
+    user.isVerified = true;
     await user.save();
 
     res.cookie("token", "", {
@@ -274,226 +143,193 @@ const verifyEmail = async (req, res) => {
       sameSite: "Strict",
     });
 
-    res.status(200).json({
-      status: "success",
-      message: "Email verified successfully. You can now log in.",
-    });
-  } catch (error) {
-    res.status(400).json({ error: "Invalid or expired token." });
+    return successResponse(res, {}, "Email verified. You can now log in.");
+  } catch (err) {
+    return errorResponse(res, err.message, err.statusCode || 400);
   }
 };
 
-// 	Be om å få tilsendt link for å nullstille passord
+// Be om lenke for å nullstille passord
 const requestPasswordReset = async (req, res, next) => {
-  const { email } = req.body;
-
   try {
+    const { email } = req.body;
     const user = await User.findOne({ email });
-    if (!user) {
-      return res
-        .status(404)
-        .json({ error: "User with this email does not exist." });
-    }
+    if (!user) return next(new CreateError("User not found", 404));
 
-    const resetToken = jwt.sign(
-      { id: user._id, email: user.email },
-      process.env.JWT_SECRET,
-      { expiresIn: "1h" } // Token valid for 1 hour
-    );
+    const token = generateToken({ id: user._id, email: user.email }, "1h");
+    const link = `${process.env.FRONTEND_URL}/reset-password?token=${token}`;
 
-    const resetLink = `${process.env.FRONTEND_URL}/reset-password?token=${resetToken}`;
-
-    const client = new SMTPClient({
-      user: process.env.EMAILJS_USER,
-      password: process.env.EMAILJS_PASSWORD,
-      host: process.env.EMAILJS_HOST,
-      ssl: true,
-    });
-
-    await client.sendAsync({
-      text: `Reset your password by clicking the link: ${resetLink}`, // Plain text content
-      from: process.env.EMAILJS_FROM,
+    await sendEmail({
       to: user.email,
       subject: "Reset Your Password",
-      attachment: [
-        {
-          data: `<p>Click <a href="${resetLink}">here</a> to reset your password.</p>`,
-          alternative: true,
-        }, // HTML content
-      ],
+      text: `Reset here: ${link}`,
+      html: `<p>Click <a href="${link}">here</a> to reset your password.</p>`,
     });
 
-    res.status(200).json({
-      status: "success",
-      message: "Password reset link sent to your email.",
-    });
-  } catch (error) {
-    console.error("Error sending password reset email:", error);
-    next(error);
+    return successResponse(res, {}, "Password reset link sent to email.");
+  } catch (err) {
+    next(err);
   }
 };
 
-// 	Nullstille passord via token
-const resetPassword = async (req, res, next) => {
-  const { token } = req.query; // Token from the reset link
-  const { newPassword } = req.body; // New password provided by the user
-
+// Nullstille passord
+const resetPassword = async (req, res) => {
   try {
-    if (!newPassword || newPassword.trim().length === 0) {
-      return res.status(400).json({ error: "Password is required." });
-    }
+    const { token } = req.query;
+    const { newPassword } = req.body;
 
-    if (!validateStrongPassword(newPassword)) {
-      return res.status(400).json({
-        error:
-          "Password must be stronger. At least 6 characters, including a number, a symbol, and mixed case letters.",
-      });
-    }
+    if (!validateStrongPassword(newPassword))
+      return errorResponse(res, "Password is too weak", 400);
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const decoded = verifyToken(token);
     const user = await User.findById(decoded.id);
+    if (!user) return errorResponse(res, "User not found", 404);
 
-    if (!user) {
-      return res
-        .status(404)
-        .json({ error: "Invalid token or user does not exist." });
-    }
-
-    // Hash the new password and update it
     user.password = await hashPassword(newPassword);
     user.passwordChangedAt = new Date();
     await user.save();
 
-    res.status(200).json({
-      status: "success",
-      message:
-        "Password reset successfully. You can now log in with your new password.",
-    });
-  } catch (error) {
-    console.error("Error resetting password:", error);
-    res.status(400).json({ error: "Invalid or expired token." });
+    return successResponse(res, {}, "Password has been reset");
+  } catch (err) {
+    return errorResponse(res, err.message, err.statusCode || 400);
   }
 };
 
-// Hente innlogget brukers profilinfo (uten passord).
+// Hent profil
 const getProfile = async (req, res, next) => {
   try {
-    const userId = req.user._id; // Extracted from the `authenticateUser` middleware
-    const user = await User.findById(userId).select("-password"); // Fetch user without the password
-
-    if (!user) {
-      return res.status(404).json({ error: "User not found." });
-    }
-
-    res.status(200).json({
-      status: "success",
-      user, // Return the user's data
-    });
-  } catch (error) {
-    console.error("Error fetching profile:", error);
-    next(error);
+    const user = await User.findById(req.user._id).select("-password");
+    if (!user) return next(new CreateError("User not found", 404));
+    return successResponse(res, { user });
+  } catch (err) {
+    next(err);
   }
 };
 
-// Hente alle admin-profiler
-const getAllProfiles = async (req, res, next) => {
+// Oppdater navn/passord
+const updateUser = async (req, res, next) => {
   try {
-    const { name, sort } = req.query;
+    const { name, password } = req.body;
+    const update = {};
 
-    // Lag filter hvis name-søk finnes
-    const filter = {};
     if (name) {
-      filter.name = { $regex: name, $options: "i" }; // case-insensitive søk
+      if (name.length > 50) return next(new CreateError("Name too long", 400));
+      update.name = name.trim();
     }
 
-    // Hent brukere, ekskluder passord
-    let query = User.find(filter).select("name email profileImage");
-
-    // Sortering hvis ?sort=asc eller ?sort=desc
-    if (sort === "asc") {
-      query = query.sort({ name: 1 });
-    } else if (sort === "desc") {
-      query = query.sort({ name: -1 });
+    if (password) {
+      if (!validateStrongPassword(password))
+        return next(new CreateError("Weak password", 400));
+      update.password = await hashPassword(password);
     }
 
-    const admins = await query;
+    if (Object.keys(update).length === 0)
+      return next(new CreateError("No data to update", 400));
 
-    res.status(200).json({
-      status: "success",
-      admins,
+    const updatedUser = await User.findByIdAndUpdate(req.user._id, update, {
+      new: true,
+      select: "-password",
     });
-  } catch (error) {
-    console.error("Error fetching admin profiles:", error);
-    next(error);
+
+    return successResponse(res, { user: updatedUser }, "User updated");
+  } catch (err) {
+    next(err);
+  }
+};
+
+// Slett bruker
+const deleteUser = async (req, res, next) => {
+  try {
+    const deleted = await User.findByIdAndDelete(req.user._id);
+    if (!deleted) return next(new CreateError("User not found", 404));
+
+    res.cookie("token", "", {
+      httpOnly: true,
+      expires: new Date(0),
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "Strict",
+    });
+
+    return successResponse(res, {}, "User deleted");
+  } catch (err) {
+    next(err);
   }
 };
 
 // Last opp profilbilde
 const uploadProfileImage = async (req, res, next) => {
   try {
-    const userId = req.user._id;
-    const user = await User.findById(userId);
+    const user = await User.findById(req.user._id);
+    if (!user) return next(new CreateError("User not found", 404));
 
-    if (!user) {
-      return res.status(404).json({ error: "User not found." });
-    }
-
-    // Slett gammelt bilde hvis det finnes
     if (user.profileImage) {
-      const oldImagePath = path.join(
+      const oldPath = path.join(
         __dirname,
         "../uploads/profiles",
         path.basename(user.profileImage)
       );
-      if (fs.existsSync(oldImagePath)) {
-        fs.unlinkSync(oldImagePath);
+      try {
+        await fs.unlink(oldPath);
+      } catch (err) {
+        console.warn("Previous profile image deletion failed:", err.message);
       }
     }
 
-    // Lagre nytt bilde
     user.profileImage = `/uploads/profiles/${req.file.filename}`;
     await user.save();
 
-    res.status(200).json({
-      status: "success",
-      message: "Profile image uploaded successfully",
-      imageUrl: user.profileImage,
-    });
-  } catch (error) {
-    console.error("Error uploading profile image:", error);
-    next(error);
+    return successResponse(
+      res,
+      { imageUrl: user.profileImage },
+      "Image uploaded"
+    );
+  } catch (err) {
+    next(err);
   }
 };
 
 // Slett profilbilde
 const deleteProfileImage = async (req, res, next) => {
   try {
-    const userId = req.user._id;
-    const user = await User.findById(userId);
+    const user = await User.findById(req.user._id);
+    if (!user?.profileImage)
+      return next(new CreateError("Profile image not found", 404));
 
-    if (!user || !user.profileImage) {
-      return res.status(404).json({ error: "Profile image not found." });
-    }
-
-    const imagePath = path.join(
+    const filePath = path.join(
       __dirname,
       "../uploads/profiles",
       path.basename(user.profileImage)
     );
-    if (fs.existsSync(imagePath)) {
-      fs.unlinkSync(imagePath);
+
+    try {
+      await fs.unlink(filePath);
+    } catch (err) {
+      console.warn("Profile image deletion failed:", err.message);
     }
 
     user.profileImage = "";
     await user.save();
 
-    res.status(200).json({
-      status: "success",
-      message: "Profile image deleted successfully",
-    });
-  } catch (error) {
-    console.error("Error deleting profile image:", error);
-    next(error);
+    return successResponse(res, {}, "Image deleted");
+  } catch (err) {
+    next(err);
+  }
+};
+
+// Hent alle admin-profiler
+const getAllProfiles = async (req, res, next) => {
+  try {
+    const { name, sort } = req.query;
+    const filter = name ? { name: { $regex: name, $options: "i" } } : {};
+    let query = User.find(filter).select("name email profileImage");
+
+    if (sort === "asc") query = query.sort({ name: 1 });
+    if (sort === "desc") query = query.sort({ name: -1 });
+
+    const admins = await query;
+    return successResponse(res, { admins });
+  } catch (err) {
+    next(err);
   }
 };
 
@@ -501,13 +337,13 @@ module.exports = {
   registerUser,
   loginUser,
   logoutUser,
-  updateUser,
-  deleteUser,
   verifyEmail,
   requestPasswordReset,
   resetPassword,
   getProfile,
-  getAllProfiles,
+  updateUser,
+  deleteUser,
   uploadProfileImage,
   deleteProfileImage,
+  getAllProfiles,
 };

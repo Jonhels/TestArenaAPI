@@ -1,10 +1,13 @@
+const CreateError = require("../utils/createError");
+
 const isAuthenticated = (req, res, next) => {
-  if (req.session && req.session.microsoft) {
-    // Hvis microsoft-data finnes i session
-    return next(); // Brukeren er autentisert, gå videre
-  } else {
-    return res.status(401).json({ error: "Unauthorized. Please login first." });
-  }
+  if (req.session?.microsoft) return next();
+
+  console.warn(
+    "Unauthorized access attempt to protected route:",
+    req.originalUrl
+  );
+  return next(new CreateError("Unauthorized. Please log in first", 401));
 };
 
 module.exports = isAuthenticated;

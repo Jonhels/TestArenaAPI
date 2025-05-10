@@ -38,7 +38,7 @@ const deleteOutlookEvent = async (accessToken, eventId) => {
 const getMicrosoftUserInfo = async (accessToken) => {
   const client = getAuthenticatedClient(accessToken);
   const user = await client.api("/me").get();
-  return user; // inneholder .mail og .userPrincipalName
+  return user;
 };
 
 module.exports = {

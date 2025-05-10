@@ -1,19 +1,32 @@
 const rateLimit = require("express-rate-limit");
+const CreateError = require("../utils/createError");
 
-// Logg inn rate limiter for å begrense antall loginforsøk
+// Felles funksjon for tilpasset feilmelding via middleware
+const rateLimitHandler = (message) => (req, res, next, options) => {
+  next(new CreateError(message, 429));
+};
+
+// Login limiter
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutter
-  max: 5, // Maks 5 loginforsøk per IP på 15 min
+  max: 5,
   message: "Too many login attempts. Please try again after 15 minutes.",
-  standardHeaders: true, // Returner rate limit info i headers
-  legacyHeaders: false, // Ikke bruk gamle headers
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: rateLimitHandler("Too many login attempts. Please try again after 15 minutes."),
 });
 
-// 	Rate limiter for å beskytte mot mange reset-forsøk
+// Password reset limiter
 const resetPasswordLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 5, // Limit each IP to 5 requests per windowMs
+  windowMs: 15 * 60 * 1000,
+  max: 5,
   message: "Too many password reset attempts. Please try again later.",
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: rateLimitHandler("Too many password reset attempts. Please try again later."),
 });
 
-module.exports = { loginLimiter, resetPasswordLimiter };
+module.exports = {
+  loginLimiter,
+  resetPasswordLimiter,
+};

@@ -1,24 +1,76 @@
 const mongoose = require("mongoose");
+const { isEmail } = require("validator");
 
 const inquirySchema = new mongoose.Schema(
   {
     // Kontaktinformasjon
-    companyName: String,
-    companyCity: String,
-    companyWebsite: String,
-    contactName: String,
-    contactEmail: String,
-    contactPhone: String,
+    companyName: {
+      type: String,
+      trim: true,
+      maxlength: 100,
+    },
+    companyCity: {
+      type: String,
+      trim: true,
+      maxlength: 100,
+    },
+    companyWebsite: {
+      type: String,
+      trim: true,
+      maxlength: 200,
+    },
+    contactName: {
+      type: String,
+      trim: true,
+      maxlength: 100,
+    },
+    contactEmail: {
+      type: String,
+      trim: true,
+      lowercase: true,
+      validate: [isEmail, "Please enter a valid email address"],
+    },
+    contactPhone: {
+      type: String,
+      trim: true,
+      maxlength: 20,
+    },
 
     // Om produktet
-    productTitle: String,
-    productDescription: String,
-    developmentStage: String,
-    productType: [String],
-    partnerDescription: String,
-    storageDescription: String,
-    projectOwner: String,
-    readyToUse: String,
+    productTitle: {
+      type: String,
+      trim: true,
+      maxlength: 100,
+    },
+    productDescription: {
+      type: String,
+      trim: true,
+      maxlength: 3000,
+    },
+    developmentStage: {
+      type: String,
+      trim: true,
+    },
+    productType: {
+      type: [String],
+      default: [],
+    },
+    partnerDescription: {
+      type: String,
+      trim: true,
+    },
+    storageDescription: {
+      type: String,
+      trim: true,
+    },
+    projectOwner: {
+      type: String,
+      trim: true,
+    },
+    readyToUse: {
+      type: String,
+      trim: true,
+    },
 
     // Tilleggsinformasjon
     userExperience: String,
@@ -33,6 +85,7 @@ const inquirySchema = new mongoose.Schema(
     // Vedlegg
     attachmentUrl: {
       type: String,
+      trim: true,
     },
 
     // Systemfelter
@@ -60,17 +113,27 @@ const inquirySchema = new mongoose.Schema(
       type: [String],
       default: [],
     },
+
     comments: [
       {
-        text: { type: String, required: true },
+        text: {
+          type: String,
+          required: true,
+          trim: true,
+          maxlength: 1000,
+        },
         admin: {
           type: mongoose.Schema.Types.ObjectId,
           ref: "User",
           required: true,
         },
-        createdAt: { type: Date, default: Date.now },
+        createdAt: {
+          type: Date,
+          default: Date.now,
+        },
       },
     ],
+
     recommendations: [
       {
         name: String,
@@ -79,16 +142,25 @@ const inquirySchema = new mongoose.Schema(
           type: mongoose.Schema.Types.ObjectId,
           ref: "Contacts",
         },
-        email: String,
-        phone: String,
+        email: {
+          type: String,
+          trim: true,
+          lowercase: true,
+        },
+        phone: {
+          type: String,
+          trim: true,
+        },
         officeLocation: String,
         responsibility: String,
       },
     ],
+
     caseNumber: {
       type: String,
       unique: true,
       required: true,
+      trim: true,
     },
   },
   { timestamps: true }

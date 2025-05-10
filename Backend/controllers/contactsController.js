@@ -1,97 +1,164 @@
-const Contacts = require('../models/contactsSchema');
+const Contacts = require("../models/contactsSchema");
+const CreateError = require("../utils/createError");
+const { successResponse } = require("../utils/responseHelper");
+const { validateEmail, validatePhone } = require("../utils/validators");
 
-// Function to create a new contact
-const createContact = async (req, res) => {
-    try {
-        const { name, email, phone, officeLocation, businessName, responsibility } = req.body;
+// Opprett ny kontakt med case-insensitive sjekk på e-post
+const createContact = async (req, res, next) => {
+  try {
+    const { name, email, phone, officeLocation, businessName, responsibility } =
+      req.body;
 
-        // Create a new contact instance
-        const newContact = new Contacts({
-            name,
-            email,
-            phone,
-            officeLocation,
-            businessName,
-            responsibility,
-        });
-
-        // Save the contact to the database
-        await newContact.save();
-
-        return res.status(201).json({ message: 'Contact created successfully', contact: newContact });
-    } catch (error) {
-        return res.status(400).json({ message: error.message });
+    // Valider obligatoriske felt
+    if (!name || !email) {
+      return next(new CreateError("Name and email are required", 400));
     }
+
+    // Valider e-postformat
+    if (!validateEmail(email)) {
+      return next(new CreateError("Invalid email format", 400));
+    }
+
+    // Valider telefonnummerformat (hvis oppgitt)
+    if (phone && !validatePhone(phone)) {
+      return next(new CreateError("Invalid phone format", 400));
+    }
+
+    // Case-insensitive duplikatsjekk på e-post
+    const existing = await Contacts.findOne({
+      email: new RegExp(`^${email}$`, "i"),
+    });
+    if (existing) {
+      return next(
+        new CreateError("A contact with this email already exists", 409)
+      );
+    }
+
+    const newContact = await Contacts.create({
+      name,
+      email,
+      phone,
+      officeLocation,
+      businessName,
+      responsibility,
+    });
+
+    return successResponse(
+      res,
+      { contact: newContact },
+      "Contact created",
+      201
+    );
+  } catch (error) {
+    next(error);
+  }
 };
 
-// Function to update an existing contact
-const updateContact = async (req, res) => {
-    try {
-        const { contactId } = req.params; // Get the contact ID from request parameters
-        const updates = req.body; // Get the updates from request body
+// Oppdater eksisterende kontakt
+const updateContact = async (req, res, next) => {
+  try {
+    const { contactId } = req.params;
+    const updates = req.body;
 
-        // Find the contact by ID and update it
-        const updatedContact = await Contacts.findByIdAndUpdate(contactId, updates, { new: true });
-
-        if (!updatedContact) {
-            return res.status(404).json({ message: 'Contact not found' });
-        }
-
-        return res.status(200).json({ message: 'Contact updated successfully', contact: updatedContact });
-    } catch (error) {
-        return res.status(400).json({ message: error.message });
+    if (updates.email && !validateEmail(updates.email)) {
+      return next(new CreateError("Invalid email format", 400));
     }
+
+    if (updates.phone && !validatePhone(updates.phone)) {
+      return next(new CreateError("Invalid phone format", 400));
+    }
+
+    const updatedContact = await Contacts.findByIdAndUpdate(
+      contactId,
+      updates,
+      {
+        new: true,
+        runValidators: true,
+      }
+    );
+
+    if (!updatedContact) {
+      return next(new CreateError("Contact not found", 404));
+    }
+
+    return successResponse(res, { contact: updatedContact }, "Contact updated");
+  } catch (error) {
+    next(error);
+  }
 };
 
-// Function to delete a contact
-const deleteContact = async (req, res) => {
-    try {
-        const { contactId } = req.params; // Get the contact ID from request parameters
+// Slett kontakt
+const deleteContact = async (req, res, next) => {
+  try {
+    const { contactId } = req.params;
+    const deletedContact = await Contacts.findByIdAndDelete(contactId);
 
-        // Find the contact by ID and remove it
-        const deletedContact = await Contacts.findByIdAndDelete(contactId);
-
-        if (!deletedContact) {
-            return res.status(404).json({ message: 'Contact not found' });
-        }
-
-        return res.status(200).json({ message: 'Contact deleted successfully' });
-    } catch (error) {
-        return res.status(400).json({ message: error.message });
+    if (!deletedContact) {
+      return next(new CreateError("Contact not found", 404));
     }
+
+    return successResponse(res, {}, "Contact deleted");
+  } catch (error) {
+    next(error);
+  }
 };
 
-// Function to search for contacts based on query parameters
-const searchContacts = async (req, res) => {
-    try {
-        const { name, email, phone, businessName } = req.query;
-        let query = {};
+// Søk etter kontakter
+const searchContacts = async (req, res, next) => {
+  try {
+    const { name, email, phone, businessName } = req.query;
+    const query = {};
 
-        if (name) query.name = { $regex: name, $options: 'i' }; // Case-insensitive search
-        if (email) query.email = { $regex: email, $options: 'i' };
-        if (phone) query.phone = { $regex: phone, $options: 'i' };
-        if (businessName) query.businessName = { $regex: businessName, $options: 'i' };
+    if (name) query.name = { $regex: name, $options: "i" };
+    if (email) query.email = { $regex: email, $options: "i" };
+    if (phone) query.phone = { $regex: phone, $options: "i" };
+    if (businessName)
+      query.businessName = { $regex: businessName, $options: "i" };
 
-        const contacts = await Contacts.find(query);
+    const contacts = await Contacts.find(query);
 
-        if (contacts.length === 0) {
-            return res.status(404).json({ message: 'No contacts found' });
-        }
-
-        return res.status(200).json({ contacts });
-    } catch (error) {
-        return res.status(400).json({ message: error.message });
+    if (contacts.length === 0) {
+      return next(new CreateError("No contacts found", 404));
     }
+
+    return successResponse(res, { contacts });
+  } catch (error) {
+    next(error);
+  }
 };
 
-// Function to get all contacts
-const getAllContacts = async (req, res) => {
-    try {
-        const contacts = await Contacts.find();
-        return res.status(200).json({ contacts });
-    } catch (error) {
-        return res.status(400).json({ message: error.message });
-    }
+// Hent alle kontakter med paginering og sortering
+const getAllContacts = async (req, res, next) => {
+  try {
+    const page = Math.max(parseInt(req.query.page) || 1, 1);
+    const limit = Math.max(parseInt(req.query.limit) || 20, 1);
+    const sortOrder = req.query.sort === "desc" ? -1 : 1;
+
+    const [contacts, total] = await Promise.all([
+      Contacts.find()
+        .sort({ name: sortOrder })
+        .skip((page - 1) * limit)
+        .limit(limit),
+      Contacts.countDocuments(),
+    ]);
+
+    return successResponse(res, {
+      contacts,
+      pagination: {
+        total,
+        page,
+        pages: Math.ceil(total / limit),
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
 };
 
-module.exports = { createContact, updateContact, deleteContact, searchContacts, getAllContacts };
+module.exports = {
+  createContact,
+  updateContact,
+  deleteContact,
+  searchContacts,
+  getAllContacts,
+};

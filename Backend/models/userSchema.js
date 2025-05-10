@@ -5,7 +5,7 @@ const userSchema = new mongoose.Schema({
   name: {
     type: String,
     required: [true, "Please enter your full name"],
-    maxlength: [50, "Name cannot exceed 50 characters"],
+    maxlength: [20, "Name cannot exceed 20 characters"],
   },
   email: {
     type: String,
@@ -23,6 +23,11 @@ const userSchema = new mongoose.Schema({
     type: Boolean,
     default: false,
   },
+  role: {
+    type: String,
+    enum: ["user", "admin"],
+    default: "admin",
+  },
   passwordChangedAt: {
     type: Date,
   },
@@ -34,7 +39,6 @@ const userSchema = new mongoose.Schema({
     type: String,
     default: "",
   },
-  // Administratorer kan velge om de vil få e-poster eller ikke
   emailNotifications: {
     type: Boolean,
     default: true,

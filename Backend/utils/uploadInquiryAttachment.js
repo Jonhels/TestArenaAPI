@@ -8,25 +8,24 @@ if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
 }
 
-// Multer storage
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, uploadDir);
-  },
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname);
-    const filename = `${Date.now()}-inquiry${ext}`;
-    cb(null, filename);
-  },
-});
-
 // Kun PDF, bilde etc. (valgfritt filter)
 const fileFilter = (req, file, cb) => {
   const allowed = /pdf|docx|jpg|jpeg|png|webp/;
   const ext = path.extname(file.originalname).toLowerCase();
   if (allowed.test(ext)) cb(null, true);
-  else cb(new Error("Only PDF, DOCX or image files are allowed"));
+  else cb(new CreateError("Only PDF, DOCX, or image files are allowed", 400));
 };
+
+// Multer storage config
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, uploadDir),
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname);
+    const userId = req.user?._id || "guest";
+    const filename = `${Date.now()}-${userId}${ext}`;
+    cb(null, filename);
+  },
+});
 
 const uploadInquiryAttachment = multer({
   storage,

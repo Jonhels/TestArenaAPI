@@ -1,7 +1,9 @@
 const CalendarEvent = require("../models/calendarSchema");
+const CreateError = require("../utils/createError");
+const { successResponse } = require("../utils/responseHelper");
+const { isValidDate } = require("../utils/validators");
 
-// Opprette kalenderhendelse
-const createEvent = async (req, res) => {
+const createEvent = async (req, res, next) => {
   try {
     const {
       title,
@@ -15,15 +17,17 @@ const createEvent = async (req, res) => {
     } = req.body;
 
     if (!title || !startTime || !endTime) {
-      return res
-        .status(400)
-        .json({ error: "Title, startTime, and endTime are required." });
+      return next(
+        new CreateError("Title, startTime, and endTime are required", 400)
+      );
+    }
+
+    if (!isValidDate(startTime) || !isValidDate(endTime)) {
+      return next(new CreateError("Invalid date format", 400));
     }
 
     if (new Date(startTime) >= new Date(endTime)) {
-      return res
-        .status(400)
-        .json({ error: "End time must be after start time." });
+      return next(new CreateError("End time must be after start time", 400));
     }
 
     const newEvent = await CalendarEvent.create({
@@ -38,179 +42,136 @@ const createEvent = async (req, res) => {
       createdBy: req.user._id,
     });
 
-    res.status(201).json({ status: "success", event: newEvent });
+    return successResponse(res, { event: newEvent }, "Event created", 201);
   } catch (error) {
-    console.error("Error creating event:", error);
-    res.status(500).json({ error: "Failed to create event." });
+    next(error);
   }
 };
 
-// Hente alle kalenderhendelser (filtrering på dato)
-const getAllEvents = async (req, res) => {
+const getAllEvents = async (req, res, next) => {
   try {
     const { from, to } = req.query;
-
     const filter = {};
 
     if (from && to) {
-      if (isNaN(new Date(from)) || isNaN(new Date(to))) {
-        return res.status(400).json({ error: "Invalid date format." });
+      if (!isValidDate(from) || !isValidDate(to)) {
+        return next(new CreateError("Invalid date format", 400));
       }
       filter.startTime = { $gte: new Date(from), $lte: new Date(to) };
     }
 
     const events = await CalendarEvent.find(filter).sort({ startTime: 1 });
-
-    res.status(200).json({ status: "success", events });
+    return successResponse(res, { events });
   } catch (error) {
-    console.error("Error fetching events:", error);
-    res.status(500).json({ error: "Failed to fetch events." });
+    next(error);
   }
 };
 
-// Hente én spesifikk hendelse
-const getEventById = async (req, res) => {
+const getEventById = async (req, res, next) => {
   try {
-    const { eventId } = req.params;
-    const event = await CalendarEvent.findById(eventId);
-
-    if (!event) {
-      return res.status(404).json({ error: "Event not found." });
-    }
-
-    res.status(200).json({ status: "success", event });
+    const event = await CalendarEvent.findById(req.params.eventId);
+    if (!event) return next(new CreateError("Event not found", 404));
+    return successResponse(res, { event });
   } catch (error) {
-    console.error("Error fetching event:", error);
-    res.status(500).json({ error: "Failed to fetch event." });
+    next(error);
   }
 };
 
-// Oppdatere kalenderhendelse
-const updateEvent = async (req, res) => {
+const updateEvent = async (req, res, next) => {
   try {
-    const { eventId } = req.params;
     const { startTime, endTime } = req.body;
 
-    if (startTime && endTime && new Date(startTime) >= new Date(endTime)) {
-      return res
-        .status(400)
-        .json({ error: "End time must be after start time." });
+    if (startTime && endTime) {
+      if (!isValidDate(startTime) || !isValidDate(endTime)) {
+        return next(new CreateError("Invalid date format", 400));
+      }
+      if (new Date(startTime) >= new Date(endTime)) {
+        return next(new CreateError("End time must be after start time", 400));
+      }
     }
 
-    const updatedEvent = await CalendarEvent.findByIdAndUpdate(
-      eventId,
+    const updated = await CalendarEvent.findByIdAndUpdate(
+      req.params.eventId,
       req.body,
       { new: true, runValidators: true }
     );
 
-    if (!updatedEvent) {
-      return res.status(404).json({ error: "Event not found." });
-    }
-
-    res.status(200).json({ status: "success", event: updatedEvent });
+    if (!updated) return next(new CreateError("Event not found", 404));
+    return successResponse(res, { event: updated }, "Event updated");
   } catch (error) {
-    console.error("Error updating event:", error);
-    res.status(500).json({ error: "Failed to update event." });
+    next(error);
   }
 };
 
-// Slette kalenderhendelse
-const deleteEvent = async (req, res) => {
+const deleteEvent = async (req, res, next) => {
   try {
-    const { eventId } = req.params;
-
-    const deletedEvent = await CalendarEvent.findByIdAndDelete(eventId);
-
-    if (!deletedEvent) {
-      return res.status(404).json({ error: "Event not found." });
-    }
-
-    res
-      .status(200)
-      .json({ status: "success", message: "Event deleted successfully." });
+    const deleted = await CalendarEvent.findByIdAndDelete(req.params.eventId);
+    if (!deleted) return next(new CreateError("Event not found", 404));
+    return successResponse(res, {}, "Event deleted");
   } catch (error) {
-    console.error("Error deleting event:", error);
-    res.status(500).json({ error: "Failed to delete event." });
+    next(error);
   }
 };
 
-// Hente hendelser for en spesifikk dato
-const getEventsByDate = async (req, res) => {
+const getEventsInRange = async (start, end, res, next) => {
   try {
-    const { date } = req.query;
-    if (!date || isNaN(new Date(date))) {
-      return res.status(400).json({ error: "Valid date is required." });
-    }
-
-    const start = new Date(date);
-    const end = new Date(date);
-    end.setHours(23, 59, 59, 999);
-
     const events = await CalendarEvent.find({
       startTime: { $gte: start, $lte: end },
     }).sort({ startTime: 1 });
 
-    res.status(200).json({ status: "success", events });
+    return successResponse(res, { events });
   } catch (error) {
-    console.error("Error fetching events by date:", error);
-    res.status(500).json({ error: "Failed to fetch events." });
+    next(error);
   }
 };
 
-// Hente hendelser for en uke
-const getEventsByWeek = async (req, res) => {
-  try {
-    const { weekStart } = req.query;
-    if (!weekStart || isNaN(new Date(weekStart))) {
-      return res
-        .status(400)
-        .json({ error: "Valid week start date is required." });
-    }
-
-    const start = new Date(weekStart);
-    const end = new Date(start);
-    end.setDate(start.getDate() + 6);
-    end.setHours(23, 59, 59, 999);
-
-    const events = await CalendarEvent.find({
-      startTime: { $gte: start, $lte: end },
-    }).sort({ startTime: 1 });
-
-    res.status(200).json({ status: "success", events });
-  } catch (error) {
-    console.error("Error fetching weekly events:", error);
-    res.status(500).json({ error: "Failed to fetch events." });
+const getEventsByDate = async (req, res, next) => {
+  const { date } = req.query;
+  if (!date || !isValidDate(date)) {
+    return next(new CreateError("Valid date is required", 400));
   }
+
+  const start = new Date(date);
+  const end = new Date(date);
+  end.setHours(23, 59, 59, 999);
+
+  return getEventsInRange(start, end, res, next);
 };
 
-// Hente hendelser for en måned
-const getEventsByMonth = async (req, res) => {
-  try {
-    const { month } = req.query; // Format: "2025-04"
-    if (!month) {
-      return res.status(400).json({ error: "Month is required." });
-    }
-
-    const start = new Date(`${month}-01`);
-    const end = new Date(
-      start.getFullYear(),
-      start.getMonth() + 1,
-      0,
-      23,
-      59,
-      59,
-      999
-    );
-
-    const events = await CalendarEvent.find({
-      startTime: { $gte: start, $lte: end },
-    }).sort({ startTime: 1 });
-
-    res.status(200).json({ status: "success", events });
-  } catch (error) {
-    console.error("Error fetching monthly events:", error);
-    res.status(500).json({ error: "Failed to fetch events." });
+const getEventsByWeek = async (req, res, next) => {
+  const { weekStart } = req.query;
+  if (!weekStart || !isValidDate(weekStart)) {
+    return next(new CreateError("Valid week start date is required", 400));
   }
+
+  const start = new Date(weekStart);
+  const end = new Date(start);
+  end.setDate(start.getDate() + 6);
+  end.setHours(23, 59, 59, 999);
+
+  return getEventsInRange(start, end, res, next);
+};
+
+const getEventsByMonth = async (req, res, next) => {
+  const { month } = req.query;
+  if (!month) return next(new CreateError("Month is required", 400));
+
+  const start = new Date(`${month}-01`);
+  if (!isValidDate(start)) {
+    return next(new CreateError("Invalid month format. Use YYYY-MM", 400));
+  }
+
+  const end = new Date(
+    start.getFullYear(),
+    start.getMonth() + 1,
+    0,
+    23,
+    59,
+    59,
+    999
+  );
+
+  return getEventsInRange(start, end, res, next);
 };
 
 module.exports = {

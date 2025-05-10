@@ -2,11 +2,13 @@ const express = require("express");
 const router = express.Router();
 
 const authenticateUser = require("../utils/authenticateUser");
+const requireAdmin = require("../utils/requireAdmin");
 const {
   loginLimiter,
   resetPasswordLimiter,
 } = require("../middleware/rateLimiter");
 const upload = require("../middleware/uploadMiddleware");
+
 const {
   registerUser,
   loginUser,
@@ -22,7 +24,10 @@ const {
   deleteProfileImage,
 } = require("../controllers/userController");
 
-// Public Routes (No Auth)
+// ======================
+// PUBLIC ROUTES
+// ======================
+
 // User Registration
 router.post("/register", registerUser);
 
@@ -35,17 +40,21 @@ router.post("/logout", logoutUser);
 // Email Verification
 router.get("/verify-email", verifyEmail);
 
-// Request Password Reset (with rate limiting)
+// Request Password Reset
 router.post(
   "/password-reset-request",
   resetPasswordLimiter,
   requestPasswordReset
 );
 
-// Reset Password
+// Reset Password via Token
 router.post("/reset-password", resetPassword);
 
-// Last opp profilbilde
+// ======================
+// AUTHENTICATED ROUTES (Logged-in users)
+// ======================
+
+// Upload Profile Image
 router.post(
   "/profile-image",
   authenticateUser,
@@ -53,20 +62,23 @@ router.post(
   uploadProfileImage
 );
 
-// Slett profilbilde
+// Delete Profile Image
 router.delete("/profile-image", authenticateUser, deleteProfileImage);
 
-// Protected Routes (Auth Required)
-// Update User Info
+// Update User Info (name/password)
 router.put("/update", authenticateUser, updateUser);
 
 // Delete User Account
 router.delete("/delete", authenticateUser, deleteUser);
 
-// Get Current User Profile
+// Get Own Profile Info
 router.get("/profile", authenticateUser, getProfile);
 
-// Get All User Profiles (Admin Only)
+// ======================
+// ADMIN-ONLY ROUTES
+// ======================
+
+// Get All User Profiles (admin only)
 router.get("/profiles", authenticateUser, getAllProfiles);
 
 module.exports = router;
