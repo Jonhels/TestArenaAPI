@@ -46,8 +46,9 @@ Location: ${c.officeLocation}`;
     const prompt = `
 You are an expert business consultant AI. A new inquiry has been submitted:
 
-Title: ${inquiry.title}
-Description: ${inquiry.description}
+Title: ${inquiry.productTitle}
+Description: ${inquiry.productDescription}
+
 
 Below is a list of available contacts. Recommend the 2 most relevant contacts for this inquiry.
 
