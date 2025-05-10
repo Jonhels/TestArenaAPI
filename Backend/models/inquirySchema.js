@@ -2,16 +2,40 @@ const mongoose = require("mongoose");
 
 const inquirySchema = new mongoose.Schema(
   {
-    title: {
+    // Kontaktinformasjon
+    companyName: String,
+    companyCity: String,
+    companyWebsite: String,
+    contactName: String,
+    contactEmail: String,
+    contactPhone: String,
+
+    // Om produktet
+    productTitle: String,
+    productDescription: String,
+    developmentStage: String,
+    productType: [String],
+    partnerDescription: String,
+    storageDescription: String,
+    projectOwner: String,
+    readyToUse: String,
+
+    // Tilleggsinformasjon
+    userExperience: String,
+    testingInfo: String,
+    marketAnalysis: String,
+    testedElsewhere: String,
+    explanationIfTested: String,
+    collaboration: String,
+    additionalNotes: String,
+    feedback: String,
+
+    // Vedlegg
+    attachmentUrl: {
       type: String,
-      required: [true, "Inquiry title is required"],
-      maxlength: [50, "Inquiry title cannot exceed 50 characters"],
     },
-    description: {
-      type: String,
-      required: [true, "Inquiry description is required"],
-      maxlength: [500, "Inquiry description cannot exceed 500 characters"],
-    },
+
+    // Systemfelter
     assignedTo: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
@@ -22,9 +46,7 @@ const inquirySchema = new mongoose.Schema(
       ref: "User",
       default: null,
     },
-    assignedAt: {
-      type: Date,
-    },
+    assignedAt: Date,
     status: {
       type: String,
       enum: ["ulest", "i arbeid", "ferdig"],
@@ -40,19 +62,13 @@ const inquirySchema = new mongoose.Schema(
     },
     comments: [
       {
-        text: {
-          type: String,
-          required: true,
-        },
+        text: { type: String, required: true },
         admin: {
           type: mongoose.Schema.Types.ObjectId,
           ref: "User",
           required: true,
         },
-        createdAt: {
-          type: Date,
-          default: Date.now,
-        },
+        createdAt: { type: Date, default: Date.now },
       },
     ],
     recommendations: [
@@ -67,7 +83,7 @@ const inquirySchema = new mongoose.Schema(
         phone: String,
         officeLocation: String,
         responsibility: String,
-      }
+      },
     ],
     caseNumber: {
       type: String,
