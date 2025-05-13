@@ -3,7 +3,7 @@ const Contacts = require('../models/contactsSchema');
 // Function to create a new contact
 const createContact = async (req, res) => {
     try {
-        const { name, email, phone, officeLocation, businessName, responsibility } = req.body;
+        const { name, email, phone, officeLocation, businessName, responsibility, userId } = req.body;
 
         // Create a new contact instance
         const newContact = new Contacts({
@@ -13,6 +13,7 @@ const createContact = async (req, res) => {
             officeLocation,
             businessName,
             responsibility,
+            userId,
         });
 
         // Save the contact to the database
