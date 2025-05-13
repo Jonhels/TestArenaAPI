@@ -13,18 +13,20 @@ const generateCaseNumber = () => {
 // Opprette en ny henvendelse
 const createInquiry = async (req, res) => {
   try {
-    const { title, description, status } = req.body;
+    const formValues = req.body;
 
-    if (!title || !description) {
-      return res
-        .status(400)
-        .json({ error: "Title and description are required." });
+    // You can add your own required field checks here
+    if (!formValues.contactName || !formValues.contactEmail || !formValues.productTitle) {
+      return res.status(400).json({ error: "Missing required fields." });
     }
 
+    // Generate a unique case number
+    let caseNumber;
+    let unique = false;
     for (let i = 0; i < 10; i++) {
       caseNumber = generateCaseNumber();
-      const existing = await Inquiry.findOne({ caseNumber });
-      if (!existing) {
+      const exists = await Inquiry.findOne({ caseNumber });
+      if (!exists) {
         unique = true;
         break;
       }
@@ -34,9 +36,20 @@ const createInquiry = async (req, res) => {
       return res.status(500).json({ error: "Failed to generate unique case number." });
     }
 
-    const inquiry = await Inquiry.create({ title, description, status, caseNumber });
+    // Prepare inquiry data
+    const inquiryData = {
+      ...formValues,
+      caseNumber,
+    };
 
-    // Send e-postvarsel til admins
+    // Handle attachment if uploaded
+    if (req.file) {
+      inquiryData.attachmentUrl = `/uploads/inquiries/${req.file.filename}`;
+    }
+
+    const inquiry = await Inquiry.create(inquiryData);
+
+    // Optional: notify admins
     sendInquiryNotification(inquiry).catch((err) => {
       console.error("Failed to send inquiry notification email:", err);
     });
@@ -47,6 +60,7 @@ const createInquiry = async (req, res) => {
     res.status(500).json({ error: "Failed to create inquiry." });
   }
 };
+
 
 // Hente alle henvendelser (med filtrering)
 const getAllInquiries = async (req, res) => {
