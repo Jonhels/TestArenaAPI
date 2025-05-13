@@ -4,7 +4,8 @@ const {
     updateContact,
     deleteContact,
     searchContacts,
-    getAllContacts
+    getAllContacts,
+    getContactById
 } = require('../controllers/contactsController'); 
 const authenticateUser = require('../utils/authenticateUser');
 const router = express.Router();
@@ -21,7 +22,11 @@ router.delete('/:contactId', authenticateUser, deleteContact);
 // Route to search contacts, protected route with authenticateUser
 router.get('/search', authenticateUser, searchContacts);
 
+// Get single contact by ID
+router.get('/:contactId', authenticateUser, getContactById);
+
 // Route to get all contacts, protected route with authenticateUser
 router.get('/', authenticateUser, getAllContacts);
+
 
 module.exports = router; // Export the router to be used in the main app

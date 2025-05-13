@@ -85,6 +85,21 @@ const searchContacts = async (req, res) => {
     }
 };
 
+const getContactById = async (req, res) => {
+    try {
+        const { contactId } = req.params;
+        const contact = await Contacts.findById(contactId);
+
+        if (!contact) {
+            return res.status(404).json({ message: 'Contact not found' });
+        }
+
+        return res.status(200).json({ contact });
+    } catch (error) {
+        return res.status(400).json({ message: error.message });
+    }
+};
+
 // Function to get all contacts
 const getAllContacts = async (req, res) => {
     try {
@@ -95,4 +110,4 @@ const getAllContacts = async (req, res) => {
     }
 };
 
-module.exports = { createContact, updateContact, deleteContact, searchContacts, getAllContacts };
+module.exports = { createContact, updateContact, deleteContact, searchContacts, getAllContacts, getContactById };
