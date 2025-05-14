@@ -39,6 +39,22 @@ const userSchema = new mongoose.Schema({
     type: Boolean,
     default: true,
   },
+  role: {
+    type: String,
+    enum: ["admin", "guest"],
+    default: "guest",
+  },
+  phone: {
+    type: String,
+    trim: true,
+    maxlength: 15,
+    validate: {
+      validator: function (v) {
+        return /^\d{8,15}$/.test(v); // Only 8–15 digits
+      },
+      message: props => `${props.value} is not a valid phone number!`
+    },
+  },
 });
 
 const User = mongoose.model("User", userSchema);

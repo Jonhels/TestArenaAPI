@@ -68,7 +68,7 @@ const sendVerificationEmail = async (user) => {
 // Registrere ny bruker (med e-postbekreftelse)
 const registerUser = async (req, res, next) => {
   try {
-    const { name, email, password } = req.body;
+    const { name, email, password, phone, role } = req.body;
 
     if (!name) {
       return res.status(400).json({ error: "Name is required" });
@@ -98,6 +98,8 @@ const registerUser = async (req, res, next) => {
       email,
       password: hashedPassword,
       isVerified: false,
+      phone,
+      role: role || "guest",
     });
 
     await sendVerificationEmail(newUser);
@@ -170,7 +172,7 @@ const logoutUser = (req, res) => {
 // Oppdatere navn eller passord for innlogget bruker
 const updateUser = async (req, res, next) => {
   const userId = req.user._id;
-  const { name, password } = req.body;
+  const { name, password, phone } = req.body;
 
   const updateData = {};
 
@@ -194,6 +196,14 @@ const updateUser = async (req, res, next) => {
       const hashedPassword = await hashPassword(password);
       updateData.password = hashedPassword;
     }
+
+    if (phone && phone.trim()) {
+      if (!/^\d{8,15}$/.test(phone)) {
+        return res.status(400).json({ error: "Telefonnummer må være 8–15 sifre." });
+      }
+      updateData.phone = phone.trim();
+    }
+
 
     if (Object.keys(updateData).length === 0) {
       return res.status(400).json({ error: "No fields to update" });
