@@ -121,14 +121,44 @@ const registerUser = async (req, res, next) => {
 
 const updateAnyUser = async (req, res, next) => {
   const { id } = req.params;
-  const { name, email, phone, role } = req.body;
+  const { name, email, phone, role, organization } = req.body;
 
   const updateData = {};
 
-  if (name) updateData.name = name.trim();
-  if (email) updateData.email = email.trim();
-  if (phone) updateData.phone = phone.trim();
-  if (role) updateData.role = role;
+  if (name) {
+    if (name.trim().length > 50) {
+      return res.status(400).json({ error: "Name cannot exceed 50 characters" });
+    }
+    updateData.name = name.trim();
+  }
+
+  if (email) {
+    if (!validator.isEmail(email)) {
+      return res.status(400).json({ error: "Invalid email address" });
+    }
+    updateData.email = email.trim();
+  }
+
+  if (phone) {
+    if (!/^\d{8,15}$/.test(phone)) {
+      return res.status(400).json({ error: "Phone number must be 8–15 digits" });
+    }
+    updateData.phone = phone.trim();
+  }
+
+  if (role) {
+    if (!["admin", "guest"].includes(role)) {
+      return res.status(400).json({ error: "Invalid role" });
+    }
+    updateData.role = role;
+  }
+
+  if (organization) {
+    if (organization.length > 50) {
+      return res.status(400).json({ error: "Organization name cannot exceed 50 characters" });
+    }
+    updateData.organization = organization.trim();
+  }
 
   try {
     const updatedUser = await User.findByIdAndUpdate(id, updateData, {
@@ -141,12 +171,17 @@ const updateAnyUser = async (req, res, next) => {
       return res.status(404).json({ error: "User not found" });
     }
 
-    res.status(200).json({ status: "success", user: updatedUser });
+    res.status(200).json({
+      status: "success",
+      message: "User updated successfully",
+      user: updatedUser,
+    });
   } catch (error) {
     console.error("Error updating user:", error);
     next(error);
   }
 };
+
 
 
 // 	Logge inn bruker (JWT, cookie)
@@ -208,15 +243,29 @@ const updateUser = async (req, res, next) => {
   const updateData = {};
 
   try {
+    // Name
     if (name && name.trim()) {
       if (name.length > 50) {
-        return res
-          .status(400)
-          .json({ error: "Name cannot exceed 50 characters" });
+        return res.status(400).json({ error: "Name cannot exceed 50 characters" });
       }
       updateData.name = name.trim();
     }
 
+    // Email
+    if (email && email.trim()) {
+      if (!validator.isEmail(email)) {
+        return res.status(400).json({ error: "Invalid email format" });
+      }
+
+      const existingUser = await User.findOne({ email });
+      if (existingUser && existingUser._id.toString() !== userId.toString()) {
+        return res.status(400).json({ error: "Email is already in use" });
+      }
+
+      updateData.email = email.trim().toLowerCase();
+    }
+
+    // Password
     if (password && password.trim()) {
       if (!validateStrongPassword(password)) {
         return res.status(400).json({
@@ -228,22 +277,30 @@ const updateUser = async (req, res, next) => {
       updateData.password = hashedPassword;
     }
 
+    // Phone
     if (phone && phone.trim()) {
       if (!/^\d{8,15}$/.test(phone)) {
-        return res.status(400).json({ error: "Telefonnummer må være 8–15 sifre." });
+        return res.status(400).json({ error: "Phone number must be 8–15 digits" });
       }
       updateData.phone = phone.trim();
     }
 
-
-    if (Object.keys(updateData).length === 0) {
-      return res.status(400).json({ error: "No fields to update" });
-    }
-
+    // Organization
     if (organization && organization.trim()) {
+      if (organization.length > 50) {
+        return res.status(400).json({ error: "Organization name cannot exceed 50 characters" });
+      }
       updateData.organization = organization.trim();
     }
 
+    // Optional: prevent user from changing their own role
+    if (role) {
+      return res.status(403).json({ error: "You are not allowed to change your role" });
+    }
+
+    if (Object.keys(updateData).length === 0) {
+      return res.status(400).json({ error: "No valid fields to update" });
+    }
 
     const updatedUser = await User.findByIdAndUpdate(userId, updateData, {
       new: true,
@@ -260,6 +317,7 @@ const updateUser = async (req, res, next) => {
     next(error);
   }
 };
+
 
 // 	Slette egen bruker og cookie
 const deleteUser = async (req, res, next) => {
