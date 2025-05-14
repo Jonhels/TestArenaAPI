@@ -68,7 +68,7 @@ const sendVerificationEmail = async (user) => {
 // Registrere ny bruker (med e-postbekreftelse)
 const registerUser = async (req, res, next) => {
   try {
-    const { name, email, password, phone, role } = req.body;
+    const { name, email, password, phone, role, organization } = req.body;
 
     if (!name) {
       return res.status(400).json({ error: "Name is required" });
@@ -100,6 +100,7 @@ const registerUser = async (req, res, next) => {
       isVerified: false,
       phone,
       role: role || "guest",
+      organization
     });
 
     await sendVerificationEmail(newUser);
@@ -202,7 +203,7 @@ const logoutUser = (req, res) => {
 // Oppdatere navn eller passord for innlogget bruker
 const updateUser = async (req, res, next) => {
   const userId = req.user._id;
-  const { name, password, phone } = req.body;
+  const { name, email, password, phone, role, organization } = req.body;
 
   const updateData = {};
 
@@ -238,6 +239,11 @@ const updateUser = async (req, res, next) => {
     if (Object.keys(updateData).length === 0) {
       return res.status(400).json({ error: "No fields to update" });
     }
+
+    if (organization && organization.trim()) {
+      updateData.organization = organization.trim();
+    }
+
 
     const updatedUser = await User.findByIdAndUpdate(userId, updateData, {
       new: true,
@@ -526,7 +532,7 @@ const createUserAsAdmin = async (req, res, next) => {
       name,
       email,
       phone,
-      role,
+      role: role || "guest",
       password: hashedPassword,
       isVerified: false,
     });
