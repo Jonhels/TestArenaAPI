@@ -68,6 +68,6 @@ router.delete("/delete", authenticateUser, checkAdmin, deleteUser);
 router.get("/profile", authenticateUser, getProfile);
 
 // Get All User Profiles (Admin Only)
-router.get("/profiles", authenticateUser, checkAdmin, getAllProfiles);
+router.get("/profiles", authenticateUser, getAllProfiles);
 
 module.exports = router;
