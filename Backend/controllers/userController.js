@@ -286,17 +286,20 @@ const updateUser = async (req, res, next) => {
     }
 
     // Organization
-    if (organization && organization.trim()) {
-      if (organization.length > 50) {
+    if (organization !== undefined) {
+      if (organization.trim().length > 50) {
         return res.status(400).json({ error: "Organization name cannot exceed 50 characters" });
       }
       updateData.organization = organization.trim();
     }
 
+
     // Optional: prevent user from changing their own role
-    if (role) {
+    // Prevent user from changing their own role
+    if (role && role !== req.user.role) {
       return res.status(403).json({ error: "You are not allowed to change your role" });
     }
+
 
     if (Object.keys(updateData).length === 0) {
       return res.status(400).json({ error: "No valid fields to update" });
