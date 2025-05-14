@@ -1,4 +1,5 @@
 const express = require("express");
+const checkAdmin = require("../middleware/checkAdmin");
 const {
   createEvent,
   getAllEvents,
@@ -25,10 +26,10 @@ router.get("/", authenticateUser, getAllEvents);
 router.get("/:eventId", authenticateUser, getEventById);
 
 // Oppdatere en hendelse
-router.put("/:eventId", authenticateUser, updateEvent);
+router.put("/:eventId", authenticateUser, checkAdmin, updateEvent);
 
 // Slette en hendelse
-router.delete("/:eventId", authenticateUser, deleteEvent);
+router.delete("/:eventId", authenticateUser, checkAdmin, deleteEvent);
 
 // Ekstra filtrerte visninger
 

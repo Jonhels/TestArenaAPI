@@ -1,5 +1,6 @@
 const express = require("express");
 const router = express.Router();
+const checkAdmin = require("../middleware/checkAdmin");
 const {
   loginToMicrosoft,
   logoutMicrosoft,
@@ -30,12 +31,14 @@ router.get(
 router.post(
   "/calendar/create",
   isAuthenticated,
+  checkAdmin,
   isMicrosoftAuthenticated,
   createCalendarEvent
 );
 router.delete(
   "/calendar/:eventId",
   isAuthenticated,
+  checkAdmin,
   isMicrosoftAuthenticated,
   deleteCalendarEvent
 );

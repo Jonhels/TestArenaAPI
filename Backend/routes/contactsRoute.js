@@ -1,4 +1,5 @@
 const express = require('express');
+const checkAdmin = require("../middleware/checkAdmin");
 const {
     createContact,
     updateContact,
@@ -11,13 +12,13 @@ const authenticateUser = require('../utils/authenticateUser');
 const router = express.Router();
 
 // Route to create a new contact, protected route with authenticateUser
-router.post('/', authenticateUser, createContact);
+router.post('/', authenticateUser, checkAdmin, createContact);
 
 // Route to update an existing contact, protected route with authenticateUser
-router.put('/:contactId', authenticateUser, updateContact);
+router.put('/:contactId', authenticateUser, checkAdmin, updateContact);
 
 // Route to delete a contact, protected route with authenticateUser
-router.delete('/:contactId', authenticateUser, deleteContact);
+router.delete('/:contactId', authenticateUser, checkAdmin, deleteContact);
 
 // Route to search contacts, protected route with authenticateUser
 router.get('/search', authenticateUser, searchContacts);

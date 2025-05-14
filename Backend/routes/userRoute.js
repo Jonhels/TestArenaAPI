@@ -1,5 +1,6 @@
 const express = require("express");
 const router = express.Router();
+const checkAdmin = require("../middleware/checkAdmin");
 
 const authenticateUser = require("../utils/authenticateUser");
 const {
@@ -61,12 +62,12 @@ router.delete("/profile-image", authenticateUser, deleteProfileImage);
 router.put("/update", authenticateUser, updateUser);
 
 // Delete User Account
-router.delete("/delete", authenticateUser, deleteUser);
+router.delete("/delete", authenticateUser, checkAdmin, deleteUser);
 
 // Get Current User Profile
 router.get("/profile", authenticateUser, getProfile);
 
 // Get All User Profiles (Admin Only)
-router.get("/profiles", authenticateUser, getAllProfiles);
+router.get("/profiles", authenticateUser, checkAdmin, getAllProfiles);
 
 module.exports = router;

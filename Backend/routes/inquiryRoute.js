@@ -1,4 +1,5 @@
 const express = require("express");
+const checkAdmin = require("../middleware/checkAdmin");
 const {
   createInquiry,
   getAllInquiries,
@@ -36,50 +37,50 @@ router.get("/", authenticateUser, getAllInquiries);
 router.get("/:inquiryId", authenticateUser, getInquiryById);
 
 // Oppdater en spesifikk henvendelse
-router.put("/:inquiryId", authenticateUser, updateInquiry);
+router.put("/:inquiryId", authenticateUser, checkAdmin, updateInquiry);
 
 // Slett en spesifikk henvendelse
-router.delete("/:inquiryId", authenticateUser, deleteInquiry);
+router.delete("/:inquiryId", authenticateUser, checkAdmin, deleteInquiry);
 
 // Arkiver en henvendelse
-router.put("/archive/:inquiryId", authenticateUser, archiveInquiry);
+router.put("/archive/:inquiryId", authenticateUser, checkAdmin, archiveInquiry);
 
 // Gjenopprett en arkivert henvendelse
-router.put("/restore/:inquiryId", authenticateUser, restoreInquiry);
+router.put("/restore/:inquiryId", authenticateUser, checkAdmin, restoreInquiry);
 
 // Tilordne en admin til en henvendelse
-router.put("/assign/:inquiryId", authenticateUser, assignAdminToInquiry);
+router.put("/assign/:inquiryId", authenticateUser, checkAdmin, assignAdminToInquiry);
 
 // Endre status på en henvendelse (ulest, i arbeid, ferdig)
-router.put("/status/:inquiryId", authenticateUser, updateStatus);
+router.put("/status/:inquiryId", authenticateUser, checkAdmin, updateStatus);
 
 // Kommentar-funksjonalitet på henvendelser
 
 // Legg til en kommentar på en henvendelse
-router.post("/comment/:inquiryId", authenticateUser, addComment);
+router.post("/comment/:inquiryId", authenticateUser, checkAdmin, addComment);
 
 // Rediger en kommentar
-router.put("/comment/:inquiryId/:commentId", authenticateUser, editComment);
+router.put("/comment/:inquiryId/:commentId", authenticateUser, checkAdmin, editComment);
 
 // Slett en kommentar
 router.delete(
   "/comment/:inquiryId/:commentId",
-  authenticateUser,
+  authenticateUser, checkAdmin,
   deleteComment
 );
 
 // Tagger-funksjonalitet på henvendelser
 
 // Legg til én tag
-router.post("/tag/:inquiryId", authenticateUser, addTag);
+router.post("/tag/:inquiryId", authenticateUser, checkAdmin, addTag);
 
 // Legg til flere tagger
-router.post("/tags/:inquiryId", authenticateUser, addTags);
+router.post("/tags/:inquiryId", authenticateUser, checkAdmin, addTags);
 
 // Slett én tag
-router.delete("/tag/:inquiryId", authenticateUser, removeTag);
+router.delete("/tag/:inquiryId", authenticateUser, checkAdmin, removeTag);
 
 // Slett flere tagger
-router.delete("/tags/:inquiryId", authenticateUser, removeTags);
+router.delete("/tags/:inquiryId", authenticateUser, checkAdmin, removeTags);
 
 module.exports = router;
