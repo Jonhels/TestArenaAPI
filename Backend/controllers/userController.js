@@ -118,6 +118,36 @@ const registerUser = async (req, res, next) => {
   }
 };
 
+const updateAnyUser = async (req, res, next) => {
+  const { id } = req.params;
+  const { name, email, phone, role } = req.body;
+
+  const updateData = {};
+
+  if (name) updateData.name = name.trim();
+  if (email) updateData.email = email.trim();
+  if (phone) updateData.phone = phone.trim();
+  if (role) updateData.role = role;
+
+  try {
+    const updatedUser = await User.findByIdAndUpdate(id, updateData, {
+      new: true,
+      runValidators: true,
+      select: "-password",
+    });
+
+    if (!updatedUser) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    res.status(200).json({ status: "success", user: updatedUser });
+  } catch (error) {
+    console.error("Error updating user:", error);
+    next(error);
+  }
+};
+
+
 // 	Logge inn bruker (JWT, cookie)
 const loginUser = async (req, res, next) => {
   try {
@@ -475,6 +505,44 @@ const uploadProfileImage = async (req, res, next) => {
   }
 };
 
+// In userController.js
+const createUserAsAdmin = async (req, res, next) => {
+  try {
+    const { name, email, phone, role } = req.body;
+
+    if (!name || !email) {
+      return res.status(400).json({ error: "Name and email are required" });
+    }
+
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(400).json({ error: "Email already in use" });
+    }
+
+    const generatedPassword = Math.random().toString(36).slice(-8) + "A1!";
+    const hashedPassword = await hashPassword(generatedPassword);
+
+    const newUser = await User.create({
+      name,
+      email,
+      phone,
+      role,
+      password: hashedPassword,
+      isVerified: false,
+    });
+
+    await sendVerificationEmail(newUser);
+
+    const userForResponse = { ...newUser._doc };
+    delete userForResponse.password;
+
+    res.status(201).json({ user: userForResponse });
+  } catch (error) {
+    next(error);
+  }
+};
+
+
 // Slett profilbilde
 const deleteProfileImage = async (req, res, next) => {
   try {
@@ -512,6 +580,8 @@ module.exports = {
   loginUser,
   logoutUser,
   updateUser,
+  updateAnyUser,
+  createUserAsAdmin,
   deleteUser,
   verifyEmail,
   requestPasswordReset,

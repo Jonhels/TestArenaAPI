@@ -14,6 +14,7 @@ const {
   logoutUser,
   updateUser,
   deleteUser,
+  createUserAsAdmin,
   verifyEmail,
   requestPasswordReset,
   resetPassword,
@@ -21,6 +22,7 @@ const {
   getAllProfiles,
   uploadProfileImage,
   deleteProfileImage,
+  updateAnyUser
 } = require("../controllers/userController");
 
 // Public Routes (No Auth)
@@ -69,5 +71,11 @@ router.get("/profile", authenticateUser, getProfile);
 
 // Get All User Profiles (Admin Only)
 router.get("/profiles", authenticateUser, getAllProfiles);
+
+// Update any user (admin only)
+router.put("/:id", authenticateUser, checkAdmin, updateAnyUser);
+
+// Create new user (admin only)
+router.post("/", authenticateUser, checkAdmin, createUserAsAdmin);
 
 module.exports = router;
