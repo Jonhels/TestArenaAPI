@@ -25,7 +25,11 @@ const app = express();
 
 // Middleware
 app.use(morgan("tiny")); // Log requests
-app.use(helmet()); // Secure HTTP headers
+app.use(
+  helmet({
+    crossOriginResourcePolicy: { policy: "cross-origin" },
+  })
+);
 app.use(cookieParser());
 app.use(express.json()); // Parse JSON bodies
 
@@ -68,6 +72,8 @@ const corsOptions = {
   },
   credentials: true,
 };
+
+
 
 // Routes
 app.get("/", (req, res) => {
