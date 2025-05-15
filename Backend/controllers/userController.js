@@ -70,25 +70,15 @@ const registerUser = async (req, res, next) => {
   try {
     const { name, email, password, phone, role, organization } = req.body;
 
-    if (!name) {
-      return res.status(400).json({ error: "Name is required" });
-    }
-
-    if (name.length > 50) {
-      return res
-        .status(400)
-        .json({ error: "Name cannot exceed 50 characters" });
+    if (!name || name.length > 50) {
+      return res.status(400).json({ error: "Invalid name" });
     }
 
     if (!validateStrongPassword(password)) {
-      return res.status(400).json({
-        error:
-          "Password must be stronger. At least 6 characters, including a number, a symbol, and mixed case letters",
-      });
+      return res.status(400).json({ error: "Password must be stronger." });
     }
 
-    const exist = await User.findOne({ email });
-    if (exist) {
+    if (await User.findOne({ email })) {
       return next(new createError("Email already exists", 400));
     }
 
@@ -98,9 +88,9 @@ const registerUser = async (req, res, next) => {
       email,
       password: hashedPassword,
       isVerified: false,
-      phone,
+      phone: typeof phone === "string" ? phone.trim() : "",
       role: role || "guest",
-      organization
+      organization,
     });
 
     await sendVerificationEmail(newUser);
@@ -110,60 +100,48 @@ const registerUser = async (req, res, next) => {
 
     res.status(201).json({
       status: "success",
-      messsage:
-        "User registred successfully. Please check your email to verify your account.",
+      message: "User registered successfully. Please verify your email.",
       user: userForResponse,
     });
   } catch (error) {
     next(error);
   }
 };
-
 const updateAnyUser = async (req, res, next) => {
   const { id } = req.params;
   const { name, email, phone, role, organization } = req.body;
-
   const updateData = {};
 
-  if (name) {
-    if (name.trim().length > 50) {
-      return res.status(400).json({ error: "Name cannot exceed 50 characters" });
-    }
-    updateData.name = name.trim();
-  }
+  if (name && name.trim().length > 50) return res.status(400).json({ error: "Name too long" });
+  if (name) updateData.name = name.trim();
 
-  if (email) {
-    if (!validator.isEmail(email)) {
-      return res.status(400).json({ error: "Invalid email address" });
-    }
-    updateData.email = email.trim();
-  }
+  if (email && !validator.isEmail(email)) return res.status(400).json({ error: "Invalid email" });
+  if (email) updateData.email = email.trim();
 
   if (phone !== undefined) {
-    const trimmedPhone = phone.trim();
-    if (trimmedPhone === "") {
-      updateData.phone = "";
-    } else if (!/^\d{8,15}$/.test(trimmedPhone)) {
-      return res.status(400).json({ error: "Phone number must be 8 digits" });
-    } else {
-      updateData.phone = trimmedPhone;
-    }
+  const trimmedPhone = phone.trim();
+  if (trimmedPhone === "") {
+    // Use $unset to remove the phone field entirely
+    await User.findByIdAndUpdate(id, { $unset: { phone: "" } });
+    const updatedUser = await User.findById(id).select("-password");
+    return res.status(200).json({
+      status: "success",
+      message: "User updated successfully",
+      user: updatedUser,
+    });
+  } else if (!/^\d{8,15}$/.test(trimmedPhone)) {
+    return res.status(400).json({ error: "Phone number must be 8–15 digits" });
+  } else {
+    updateData.phone = trimmedPhone;
   }
+}
 
 
-  if (role) {
-    if (!["admin", "guest"].includes(role)) {
-      return res.status(400).json({ error: "Invalid role" });
-    }
-    updateData.role = role;
-  }
+  if (role && !["admin", "guest"].includes(role)) return res.status(400).json({ error: "Invalid role" });
+  if (role) updateData.role = role;
 
-  if (organization) {
-    if (organization.length > 50) {
-      return res.status(400).json({ error: "Organization name cannot exceed 50 characters" });
-    }
-    updateData.organization = organization.trim();
-  }
+  if (organization && organization.length > 50) return res.status(400).json({ error: "Organization too long" });
+  if (organization) updateData.organization = organization.trim();
 
   try {
     const updatedUser = await User.findByIdAndUpdate(id, updateData, {
@@ -172,15 +150,9 @@ const updateAnyUser = async (req, res, next) => {
       select: "-password",
     });
 
-    if (!updatedUser) {
-      return res.status(404).json({ error: "User not found" });
-    }
+    if (!updatedUser) return res.status(404).json({ error: "User not found" });
 
-    res.status(200).json({
-      status: "success",
-      message: "User updated successfully",
-      user: updatedUser,
-    });
+    res.status(200).json({ status: "success", message: "User updated successfully", user: updatedUser });
   } catch (error) {
     console.error("Error updating user:", error);
     next(error);
