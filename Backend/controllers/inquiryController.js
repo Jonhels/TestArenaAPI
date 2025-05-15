@@ -84,7 +84,7 @@ const getAllInquiries = async (req, res) => {
 
     const inquiries = await Inquiry.find(filter)
       .sort({ createdAt: -1 })
-      .populate("assignedTo", "name");
+      .populate("assignedTo", "name profileImage");
 
     res.status(200).json({ status: "success", inquiries });
   } catch (error) {
@@ -97,7 +97,7 @@ const getAllInquiries = async (req, res) => {
 const getInquiryById = async (req, res) => {
   try {
     const { inquiryId } = req.params;
-    const inquiry = await Inquiry.findById(inquiryId).populate("assignedTo", "name");
+    const inquiry = await Inquiry.findById(inquiryId).populate("assignedTo", "name profileImage");
 
 
     if (!inquiry) {
