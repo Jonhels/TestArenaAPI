@@ -507,33 +507,31 @@ const getAllProfiles = async (req, res, next) => {
   try {
     const { name, sort } = req.query;
 
-    // Lag filter hvis name-søk finnes
     const filter = {};
     if (name) {
-      filter.name = { $regex: name, $options: "i" }; // case-insensitive søk
+      filter.name = { $regex: name, $options: "i" };
     }
 
-    // Hent brukere, ekskluder passord
-    let query = User.find(filter).select("name email profileImage");
+    const query = User.find(filter).select("-password");
 
-    // Sortering hvis ?sort=asc eller ?sort=desc
     if (sort === "asc") {
-      query = query.sort({ name: 1 });
+      query.sort({ name: 1 });
     } else if (sort === "desc") {
-      query = query.sort({ name: -1 });
+      query.sort({ name: -1 });
     }
 
-    const admins = await query;
+    const users = await query;
 
     res.status(200).json({
       status: "success",
-      admins,
+      users,
     });
   } catch (error) {
-    console.error("Error fetching admin profiles:", error);
+    console.error("Error fetching users:", error);
     next(error);
   }
 };
+
 
 // Last opp profilbilde
 const uploadProfileImage = async (req, res, next) => {
