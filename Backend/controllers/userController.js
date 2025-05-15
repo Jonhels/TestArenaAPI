@@ -58,7 +58,7 @@ const sendVerificationEmail = async (user) => {
       ],
     });
 
-    console.log("Verification email sent successfully");
+   
   } catch (error) {
     console.error("Error sending verification email:", error.message);
     throw new Error("Failed to send verification email");

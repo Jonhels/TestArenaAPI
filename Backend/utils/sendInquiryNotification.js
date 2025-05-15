@@ -42,7 +42,7 @@ const sendInquiryNotification = async (inquiry) => {
       attachment: [{ data: htmlBody, alternative: true }],
     });
 
-    console.log("Inquiry notification email sent successfully.");
+    
   } catch (error) {
     console.error("Failed to send inquiry notification email:", error.message);
   }

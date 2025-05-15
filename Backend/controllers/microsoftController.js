@@ -132,7 +132,7 @@ const refreshAccessToken = async (refreshToken, email) => {
 
   await MicrosoftToken.findOneAndUpdate({ userEmail: email }, updateData);
 
-  console.log("Refreshed Access Token for", email);
+
   return access_token;
 };
 
@@ -145,7 +145,7 @@ const withAutoRefresh = async (userEmail, action) => {
     return await action(tokenDoc.accessToken);
   } catch (error) {
     if (error.response?.status === 401) {
-      console.log("Access token expired. Trying to refresh...");
+      
       try {
         const newAccessToken = await refreshAccessToken(
           tokenDoc.refreshToken,
