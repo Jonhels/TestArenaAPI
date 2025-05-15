@@ -10,7 +10,7 @@ const authenticateUser = async (req, res, next) => {
                 : null);
 
         if (!token) {
-            console.log("No token provided");
+           
             return res.status(401).json({ error: "Authentication required" });
         }
 
