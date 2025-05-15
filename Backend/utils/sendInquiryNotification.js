@@ -24,18 +24,18 @@ const sendInquiryNotification = async (inquiry) => {
       port: process.env.EMAILJS_PORT || 465,
     });
 
-    const adminLink = `${process.env.ADMIN_URL}/inquiries/${inquiry._id}`;
+    const adminLink = `${process.env.FRONTEND_URL}/henvendelser/${inquiry._id}`;
 
-    const subject = `Ny henvendelse: ${inquiry.title}`;
+    const subject = `Ny henvendelse: ${inquiry.productTitle}`;
     const htmlBody = `
       <h2>Ny henvendelse mottatt</h2>
-      <p><strong>Tittel:</strong> ${inquiry.title}</p>
-      <p><strong>Beskrivelse:</strong> ${inquiry.description}</p>
+      <p><strong>Tittel:</strong> ${inquiry.productTitle}</p>
+      <p><strong>Beskrivelse:</strong> ${inquiry.productDescription}</p>
       <p><a href="${adminLink}">Se henvendelsen i adminpanelet</a></p>
     `;
 
     await client.sendAsync({
-      text: `Ny henvendelse: ${inquiry.title}\n\n${inquiry.description}\n\nLink: ${adminLink}`,
+      text: `Ny henvendelse: ${inquiry.productTitle}\n\n${inquiry.productDescription}\n\nLink: ${adminLink}`,
       from: process.env.EMAILJS_FROM,
       to: adminEmails.join(","),
       subject: subject,
