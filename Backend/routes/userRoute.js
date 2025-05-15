@@ -22,7 +22,8 @@ const {
   getAllProfiles,
   uploadProfileImage,
   deleteProfileImage,
-  updateAnyUser
+  updateAnyUser,
+  deleteAnyUser
 } = require("../controllers/userController");
 
 // Public Routes (No Auth)
@@ -44,6 +45,10 @@ router.post(
   resetPasswordLimiter,
   requestPasswordReset
 );
+
+// Delete any user (admin only)
+router.delete("/:id", authenticateUser, checkAdmin, deleteAnyUser);
+
 
 // Reset Password
 router.post("/reset-password", resetPassword);
