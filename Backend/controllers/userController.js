@@ -283,12 +283,17 @@ const updateUser = async (req, res, next) => {
     }
 
     // Phone
-    if (phone && phone.trim()) {
-      if (!/^\d{8,15}$/.test(phone)) {
+    if (phone !== undefined) {
+      const trimmedPhone = phone.trim();
+      if (trimmedPhone === "") {
+        updateData.phone = ""; // clear phone
+      } else if (!/^\d{8,15}$/.test(trimmedPhone)) {
         return res.status(400).json({ error: "Phone number must be 8–15 digits" });
+      } else {
+        updateData.phone = trimmedPhone;
       }
-      updateData.phone = phone.trim();
     }
+
 
     // Organization
     if (organization !== undefined) {
