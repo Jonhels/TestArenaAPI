@@ -139,12 +139,17 @@ const updateAnyUser = async (req, res, next) => {
     updateData.email = email.trim();
   }
 
-  if (phone) {
-    if (!/^\d{8,15}$/.test(phone)) {
-      return res.status(400).json({ error: "Phone number must be 8–15 digits" });
+  if (phone !== undefined) {
+    const trimmedPhone = phone.trim();
+    if (trimmedPhone === "") {
+      updateData.phone = "";
+    } else if (!/^\d{8,15}$/.test(trimmedPhone)) {
+      return res.status(400).json({ error: "Phone number must be 8 digits" });
+    } else {
+      updateData.phone = trimmedPhone;
     }
-    updateData.phone = phone.trim();
   }
+
 
   if (role) {
     if (!["admin", "guest"].includes(role)) {
