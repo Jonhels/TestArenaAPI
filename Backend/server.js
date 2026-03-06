@@ -22,6 +22,7 @@ const aiRoutes = require("./routes/aiRoutes");
 
 // Init app
 const app = express();
+app.set("trust proxy", 1)
 
 // Middleware
 app.use(morgan("tiny")); // Log requests
